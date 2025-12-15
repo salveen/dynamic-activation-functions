@@ -34,7 +34,7 @@ def main() -> None:
     assert np.all((p0 >= 0) & (p0 <= 1))
 
     loss0 = bce(y, p0)
-    model.train_weights(X, y, epochs=200, batch_size=32, shuffle=True, seed=0)
+    model.train(X, y, epochs=200, batch_size=32, shuffle=True, seed=0, loss="bce")
     p1 = model.predict_proba(X)
     loss1 = bce(y, p1)
 
@@ -44,7 +44,7 @@ def main() -> None:
     # Not too strict, but should noticeably improve.
     assert loss1 < loss0 * 0.8
 
-    acc = float(np.mean(model.predict(X) == y))
+    acc = float(np.mean(model.predict_class(X) == y))
     print(f"Train accuracy: {acc:.3f}")
     assert acc > 0.85
 

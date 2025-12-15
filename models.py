@@ -39,42 +39,27 @@ class Neuron:
         return np.dot(X, self.weights) + self.bias
     
     def predict(self, X: np.ndarray) -> np.ndarray:
-        """
-        Make binary predictions.
-        Returns: Array of 0s and 1s.
-        """
-        z = self._compute_weighted_sum(X)
-        activation_output = self._activation_forward(z)
-        return np.where(activation_output > 0.5, 1, 0)
+        """Return the **continuous** neuron output.
 
-    def predict_proba(self, X: np.ndarray) -> np.ndarray:
-        """Return continuous outputs in [0, 1] for probabilistic models."""
+        This is regression-first and is the most reusable behavior when you
+        later move to an MLP.
+        """
         z = self._compute_weighted_sum(X)
         return self._activation_forward(z)
-    
-    def train_activation(self, X: np.ndarray, y: np.ndarray, epochs: int) -> None:
-        """Train only activation function parameters (freeze weights)."""
-        if self.activation_state.name in {"fixed_relu"}:
-            print("--- Stage 1: Training Activation Function (skipped for fixed activations) ---")
-            return
 
-        print("--- Stage 1: Training Activation Function ---")
-        print(f"    Initial: {self.activation_info}")
-        
-        for epoch in range(epochs):
-            # Forward pass
-            z = self._compute_weighted_sum(X)
-            predictions = self._activation_forward(z)
-            
-            # Compute error (MSE)
-            error = predictions - y
-            
-            # Update activation function parameters
-            self._train_activation_params(z, error)
-        
-        print(f"    Final: {self.activation_info}")
-    
-    def train_weights(
+    def predict_class(self, X: np.ndarray, threshold: float = 0.5) -> np.ndarray:
+        """Legacy binary predictions by thresholding the continuous output."""
+        y_hat = self.predict(X)
+        return np.where(y_hat > threshold, 1, 0)
+
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        """Alias for `predict()`.
+
+        Note: outputs are only true probabilities for sigmoid-like activations.
+        """
+        return self.predict(X)
+
+    def train(
         self,
         X: np.ndarray,
         y: np.ndarray,
@@ -82,20 +67,26 @@ class Neuron:
         batch_size: int = 32,
         shuffle: bool = True,
         seed: int | None = None,
+        loss: str = "mse",
+        train_weights: bool = True,
+        train_activation: bool = True,
     ) -> None:
-        """Train weights with **mini-batch SGD** (fully differentiable path).
+        """Jointly train weights **and** learnable activation parameters.
+
+        This is the most natural training path when you later scale this code
+        to an MLP: one forward pass, one loss, one update step.
 
         Args:
             X: Features, shape (n_samples, n_features)
-            y: Binary labels (0/1), shape (n_samples,)
-            epochs: Number of passes over the dataset
-            batch_size: Mini-batch size. If >= n_samples, behaves like full-batch GD.
-            shuffle: Shuffle samples each epoch
-            seed: Optional RNG seed for deterministic shuffling
+            y: Targets, shape (n_samples,)
+            epochs: Passes over the dataset
+            batch_size: Mini-batch size
+            shuffle: Shuffle each epoch
+            seed: RNG seed for shuffling
+            loss: "mse" (regression) or "bce" (probabilistic outputs)
+            train_weights: Update weights/bias
+            train_activation: Update activation parameters (if any)
         """
-
-        print("--- Stage 2: Training Weights (Mini-batch SGD) ---")
-        print(f"    Using: {self.activation_info}")
 
         y = y.astype(float)
         n = len(X)
@@ -107,6 +98,9 @@ class Neuron:
             raise ValueError("batch_size must be a positive integer")
         if bs > n:
             bs = n
+
+        if loss not in {"mse", "bce"}:
+            raise ValueError("loss must be one of: {'mse', 'bce'}")
 
         rng = np.random.default_rng(seed)
 
@@ -126,18 +120,66 @@ class Neuron:
                 z = self._compute_weighted_sum(Xb)
                 p = self._activation_forward(z)
 
-                # For sigmoid+BCE: dL/dz = p - y.
-                # For other continuous activations we apply chain rule.
-                if self.activation_state.name == "sigmoid":
-                    dz = p - yb
-                else:
-                    d_act = self._activation_derivative(z)
-                    dz = (p - yb) * d_act
+                # dL/dp
+                dL_dp = self._loss_grad_wrt_output(yb, p, loss)
 
-                grad_w = (Xb.T @ dz) / len(Xb)
-                grad_b = float(np.mean(dz))
-                self.weights -= self.learning_rate * grad_w
-                self.bias -= self.learning_rate * grad_b
+                # dL/dz = dL/dp * dp/dz
+                dp_dz = self._activation_derivative(z)
+                dL_dz = dL_dp * dp_dz
+
+                if train_weights:
+                    grad_w = (Xb.T @ dL_dz) / len(Xb)
+                    grad_b = float(np.mean(dL_dz))
+                    self.weights -= self.learning_rate * grad_w
+                    self.bias -= self.learning_rate * grad_b
+
+                if train_activation and self.activation_state.params:
+                    self._train_activation_params_joint(z, dL_dp)
+
+    def _loss_grad_wrt_output(self, y: np.ndarray, p: np.ndarray, loss: str) -> np.ndarray:
+        """Gradient of loss w.r.t. model output p (not pre-activation z)."""
+        if loss == "mse":
+            # L = 1/2 * (p - y)^2, so dL/dp = (p - y)
+            return p - y
+        if loss == "bce":
+            # L = -[y log p + (1-y) log(1-p)]
+            # dL/dp = (p - y) / (p (1-p))
+            eps = 1e-12
+            pc = np.clip(p, eps, 1.0 - eps)
+            return (pc - y) / (pc * (1.0 - pc))
+        raise ValueError(f"Unknown loss: {loss}")
+
+    def _train_activation_params_joint(self, z: np.ndarray, dL_dp: np.ndarray) -> None:
+        """Update activation parameters using chain rule from dL/dp.
+
+        This keeps activation learning consistent with the chosen loss.
+        """
+        if self.activation_state.name == "dynamic_relu":
+            a = self.activation_state.params["a"]
+            b = self.activation_state.params["b"]
+            # p = a if a >= b z else b z
+            mask_a_active = (a >= b * z).astype(float)
+            mask_b_active = (b * z > a).astype(float)
+            dp_da = mask_a_active
+            dp_db = mask_b_active * z
+            grad_a = float(np.mean(dL_dp * dp_da))
+            grad_b = float(np.mean(dL_dp * dp_db))
+            self.activation_state.params["a"] -= self.learning_rate * grad_a
+            self.activation_state.params["b"] -= self.learning_rate * grad_b
+        elif self.activation_state.name == "sigmoid":
+            threshold = self.activation_state.params["threshold"]
+            steepness = self.activation_state.params["steepness"]
+            p = self._activation_forward(z)
+            # p = sigmoid(s(z - t)); dp/dt = -s p (1-p)
+            dp_dthreshold = -steepness * p * (1.0 - p)
+            grad_threshold = float(np.mean(dL_dp * dp_dthreshold))
+            self.activation_state.params["threshold"] -= self.learning_rate * grad_threshold
+
+            # dp/ds = (z - t) p (1-p)
+            dp_dsteepness = (z - threshold) * p * (1.0 - p)
+            grad_steepness = float(np.mean(dL_dp * dp_dsteepness))
+            self.activation_state.params["steepness"] -= self.learning_rate * grad_steepness
+            self.activation_state.params["steepness"] = float(np.clip(self.activation_state.params["steepness"], 0.1, 50.0))
 
     @property
     def activation_info(self) -> str:
@@ -192,28 +234,3 @@ class Neuron:
             steepness = self.activation_state.params["steepness"]
             return steepness * p * (1.0 - p)
         return np.zeros_like(z, dtype=float)
-
-    def _train_activation_params(self, z: np.ndarray, error: np.ndarray) -> None:
-        if self.activation_state.name == "dynamic_relu":
-            a = self.activation_state.params["a"]
-            b = self.activation_state.params["b"]
-            mask_a_active = (a >= b * z).astype(float)
-            mask_b_active = (b * z > a).astype(float)
-            grad_a = np.mean(error * mask_a_active)
-            grad_b = np.mean(error * mask_b_active * z)
-            self.activation_state.params["a"] -= self.learning_rate * grad_a
-            self.activation_state.params["b"] -= self.learning_rate * grad_b
-        elif self.activation_state.name == "sigmoid":
-            # Train threshold (and optionally steepness) using a sigmoid surrogate.
-            threshold = self.activation_state.params["threshold"]
-            steepness = self.activation_state.params["steepness"]
-            p = self._activation_forward(z)
-            dp_dthreshold = -steepness * p * (1.0 - p)
-            grad_threshold = np.mean(error * dp_dthreshold)
-            self.activation_state.params["threshold"] -= self.learning_rate * grad_threshold
-
-            # Optional: allow steepness to adapt gently (kept stable via clipping)
-            dp_dsteepness = (z - threshold) * p * (1.0 - p)
-            grad_steepness = np.mean(error * dp_dsteepness)
-            self.activation_state.params["steepness"] -= self.learning_rate * grad_steepness
-            self.activation_state.params["steepness"] = float(np.clip(self.activation_state.params["steepness"], 0.1, 50.0))

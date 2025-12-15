@@ -35,7 +35,8 @@ class ModelTrainer:
         """Train neuron with fixed ReLU (no activation training)."""
         print("\n2. Training Fixed ReLU Neuron")
         neuron = Neuron(input_dim, activation="fixed_relu")
-        neuron.train_weights(X_train, y_train, self.weight_epochs)
+        # Fixed activation has no learnable params; just train weights.
+        neuron.train(X_train, y_train, epochs=self.weight_epochs, loss="mse", train_activation=False)
         return neuron
     
     def train_dynamic_neuron(self, X_train: np.ndarray, y_train: np.ndarray, 
@@ -43,8 +44,8 @@ class ModelTrainer:
         """Train neuron with dynamic learnable activation."""
         print("\n3. Training Dynamic ReLU Neuron")
         neuron = Neuron(input_dim, activation="dynamic_relu")
-        neuron.train_activation(X_train, y_train, self.activation_epochs)
-        neuron.train_weights(X_train, y_train, self.weight_epochs)
+        # Seamless joint training: weights + activation together.
+        neuron.train(X_train, y_train, epochs=self.weight_epochs, loss="mse", train_activation=True)
         return neuron
     
     def train_sigmoid_neuron(self, X_train: np.ndarray, y_train: np.ndarray,
@@ -52,8 +53,8 @@ class ModelTrainer:
         """Train a sigmoid neuron (soft perceptron) with fully differentiable learning."""
         print("\n4. Training Sigmoid Neuron (Soft Perceptron)")
         neuron = Neuron(input_dim, activation="sigmoid")
-        neuron.train_activation(X_train, y_train, self.activation_epochs)
-        neuron.train_weights(X_train, y_train, self.weight_epochs)
+        # Seamless joint training: weights + activation together.
+        neuron.train(X_train, y_train, epochs=self.weight_epochs, loss="bce", train_activation=True)
         return neuron
 
 
@@ -99,7 +100,9 @@ class ModelEvaluator:
     def evaluate_neuron(self, neuron: Neuron, X_test: np.ndarray, 
                        y_test: np.ndarray, name: str) -> ModelResult:
         """Evaluate custom neuron."""
-        predictions = neuron.predict(X_test)
+        # `Neuron.predict()` is regression-first (continuous). For classification
+        # experiments we use the legacy thresholding helper.
+        predictions = neuron.predict_class(X_test)
         accuracy = accuracy_score(y_test, predictions)
         model_info = neuron.activation_info
         result = ModelResult(
