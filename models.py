@@ -74,30 +74,70 @@ class Neuron:
         
         print(f"    Final: {self.activation_info}")
     
-    def train_weights(self, X: np.ndarray, y: np.ndarray, epochs: int) -> None:
-        """Train weights with gradient descent (fully differentiable path).
+    def train_weights(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        epochs: int,
+        batch_size: int = 32,
+        shuffle: bool = True,
+        seed: int | None = None,
+    ) -> None:
+        """Train weights with **mini-batch SGD** (fully differentiable path).
 
-        This is the training style you'll also use for MLPs.
+        Args:
+            X: Features, shape (n_samples, n_features)
+            y: Binary labels (0/1), shape (n_samples,)
+            epochs: Number of passes over the dataset
+            batch_size: Mini-batch size. If >= n_samples, behaves like full-batch GD.
+            shuffle: Shuffle samples each epoch
+            seed: Optional RNG seed for deterministic shuffling
         """
-        print("--- Stage 2: Training Weights (Gradient Descent) ---")
+
+        print("--- Stage 2: Training Weights (Mini-batch SGD) ---")
         print(f"    Using: {self.activation_info}")
+
         y = y.astype(float)
+        n = len(X)
+        if n == 0:
+            return
+
+        bs = int(batch_size)
+        if bs <= 0:
+            raise ValueError("batch_size must be a positive integer")
+        if bs > n:
+            bs = n
+
+        rng = np.random.default_rng(seed)
 
         for _epoch in range(epochs):
-            z = self._compute_weighted_sum(X)
-            p = self._activation_forward(z)
-            # For sigmoid+BCE: dL/dz = p - y.
-            # For other continuous activations we apply chain rule.
-            if self.activation_state.name == "sigmoid":
-                dz = p - y
+            if shuffle:
+                idx = rng.permutation(n)
+                X_epoch = X[idx]
+                y_epoch = y[idx]
             else:
-                d_act = self._activation_derivative(z)
-                dz = (p - y) * d_act
+                X_epoch = X
+                y_epoch = y
 
-            grad_w = (X.T @ dz) / len(X)
-            grad_b = float(np.mean(dz))
-            self.weights -= self.learning_rate * grad_w
-            self.bias -= self.learning_rate * grad_b
+            for start in range(0, n, bs):
+                Xb = X_epoch[start : start + bs]
+                yb = y_epoch[start : start + bs]
+
+                z = self._compute_weighted_sum(Xb)
+                p = self._activation_forward(z)
+
+                # For sigmoid+BCE: dL/dz = p - y.
+                # For other continuous activations we apply chain rule.
+                if self.activation_state.name == "sigmoid":
+                    dz = p - yb
+                else:
+                    d_act = self._activation_derivative(z)
+                    dz = (p - yb) * d_act
+
+                grad_w = (Xb.T @ dz) / len(Xb)
+                grad_b = float(np.mean(dz))
+                self.weights -= self.learning_rate * grad_w
+                self.bias -= self.learning_rate * grad_b
 
     @property
     def activation_info(self) -> str:
