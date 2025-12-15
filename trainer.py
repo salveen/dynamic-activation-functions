@@ -47,19 +47,11 @@ class ModelTrainer:
         neuron.train_weights(X_train, y_train, self.weight_epochs)
         return neuron
     
-    def train_fixed_step_neuron(self, X_train: np.ndarray, y_train: np.ndarray, 
-                                input_dim: int) -> Neuron:
-        """Train neuron with fixed step function (no activation training)."""
-        print("\n4. Training Fixed Step Neuron")
-        neuron = Neuron(input_dim, activation="fixed_step")
-        neuron.train_weights(X_train, y_train, self.weight_epochs)
-        return neuron
-    
-    def train_adaptive_step_neuron(self, X_train: np.ndarray, y_train: np.ndarray, 
-                                   input_dim: int) -> Neuron:
-        """Train neuron with adaptive step function."""
-        print("\n5. Training Adaptive Step Neuron")
-        neuron = Neuron(input_dim, activation="adaptive_step")
+    def train_sigmoid_neuron(self, X_train: np.ndarray, y_train: np.ndarray,
+                             input_dim: int) -> Neuron:
+        """Train a sigmoid neuron (soft perceptron) with fully differentiable learning."""
+        print("\n4. Training Sigmoid Neuron (Soft Perceptron)")
+        neuron = Neuron(input_dim, activation="sigmoid")
         neuron.train_activation(X_train, y_train, self.activation_epochs)
         neuron.train_weights(X_train, y_train, self.weight_epochs)
         return neuron

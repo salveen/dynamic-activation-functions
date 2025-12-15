@@ -27,7 +27,7 @@ class PerceptronExperiment:
     def run(self) -> None:
         """Execute the complete experiment pipeline."""
         print("=" * 60)
-        print("PERCEPTRON EXPERIMENT WITH ADAPTIVE ACTIVATIONS")
+        print("PERCEPTRON EXPERIMENT WITH ADAPTIVE + SOFT ACTIVATIONS")
         print("=" * 60)
         print()
         
@@ -39,24 +39,19 @@ class PerceptronExperiment:
         sklearn_model = self.trainer.train_baseline_sklearn(X_train, y_train)
         fixed_neuron = self.trainer.train_fixed_neuron(X_train, y_train, input_dim)
         dynamic_neuron = self.trainer.train_dynamic_neuron(X_train, y_train, input_dim)
-        fixed_step_neuron = self.trainer.train_fixed_step_neuron(X_train, y_train, input_dim)
-        adaptive_step_neuron = self.trainer.train_adaptive_step_neuron(X_train, y_train, input_dim)
+        sigmoid_neuron = self.trainer.train_sigmoid_neuron(X_train, y_train, input_dim)
         
         print("\n" + "-" * 60)
         print("EVALUATION ON TEST SET")
         print("-" * 60)
         
         # 3. Evaluate all models
-        self.evaluator.evaluate_sklearn_model(sklearn_model, X_test, y_test, 
-                                              "Sklearn Perceptron (Baseline)")
-        self.evaluator.evaluate_neuron(fixed_neuron, X_test, y_test, 
-                                       "Fixed ReLU Neuron")
-        self.evaluator.evaluate_neuron(dynamic_neuron, X_test, y_test, 
-                                       "Dynamic ReLU Neuron")
-        self.evaluator.evaluate_neuron(fixed_step_neuron, X_test, y_test, 
-                                       "Fixed Step Neuron")
-        self.evaluator.evaluate_neuron(adaptive_step_neuron, X_test, y_test, 
-                                       "Adaptive Step Neuron")
+        self.evaluator.evaluate_sklearn_model(
+            sklearn_model, X_test, y_test, "Sklearn Perceptron (Baseline)"
+        )
+        self.evaluator.evaluate_neuron(fixed_neuron, X_test, y_test, "Fixed ReLU Neuron")
+        self.evaluator.evaluate_neuron(dynamic_neuron, X_test, y_test, "Dynamic ReLU Neuron")
+        self.evaluator.evaluate_neuron(sigmoid_neuron, X_test, y_test, "Sigmoid Neuron (Soft Perceptron)")
         
         # 4. Display comprehensive results
         self.evaluator.print_comparison()
