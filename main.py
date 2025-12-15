@@ -68,11 +68,9 @@ class PerceptronExperiment:
 def main():
     """Main entry point for the experiment."""
     print("Available datasets:")
-    print("  1. synthetic - Generated dataset (customizable)")
-    print("  2. breast_cancer - Breast Cancer Wisconsin (569 samples, 30 features)")
-    print("  3. iris - Iris flowers (150 samples, 4 features)")
-    print("  4. wine - Wine classification (178 samples, 13 features)")
-    print("  5. digits - Handwritten digits (1797 samples, 64 features)")
+    print("  1. breast_cancer - Breast Cancer Wisconsin (569 samples, 30 features)")
+    print("  2. titanic - Passenger survival (with engineered categorical features)")
+    print("  3. heart_disease - UCI Heart Disease (13 clinical measurements)")
     print()
     
     # Fixed seed for reproducibility
@@ -80,21 +78,9 @@ def main():
     
     # You can easily switch between datasets by changing dataset_type
     datasets_to_test = [
-        ('synthetic', DatasetConfig(
-            dataset_type='synthetic',
-            n_samples=1000,
-            n_features=20,
-            n_informative=6,
-            n_redundant=8,
-            n_repeated=4,
-            class_sep=0.5,
-            flip_y=0.15,
-            random_state=SEED
-        )),
         ('breast_cancer', DatasetConfig(dataset_type='breast_cancer', random_state=SEED)),
-        ('iris', DatasetConfig(dataset_type='iris', random_state=SEED)),
-        ('wine', DatasetConfig(dataset_type='wine', random_state=SEED)),
-        ('digits', DatasetConfig(dataset_type='digits', random_state=SEED))
+        ('titanic', DatasetConfig(dataset_type='titanic', random_state=SEED)),
+        ('heart_disease', DatasetConfig(dataset_type='heart_disease', random_state=SEED))
     ]
     
     # Run experiments on all datasets

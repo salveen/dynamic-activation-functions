@@ -14,7 +14,6 @@ from sklearn.linear_model import Perceptron
 from sklearn.metrics import accuracy_score
 
 from models import Neuron
-from factory import NeuronFactory
 
 
 class ModelTrainer:
@@ -35,7 +34,7 @@ class ModelTrainer:
                           input_dim: int) -> Neuron:
         """Train neuron with fixed ReLU (no activation training)."""
         print("\n2. Training Fixed ReLU Neuron")
-        neuron = NeuronFactory.create_fixed_relu_neuron(input_dim)
+        neuron = Neuron(input_dim, activation="fixed_relu")
         neuron.train_weights(X_train, y_train, self.weight_epochs)
         return neuron
     
@@ -43,7 +42,7 @@ class ModelTrainer:
                             input_dim: int) -> Neuron:
         """Train neuron with dynamic learnable activation."""
         print("\n3. Training Dynamic ReLU Neuron")
-        neuron = NeuronFactory.create_dynamic_relu_neuron(input_dim)
+        neuron = Neuron(input_dim, activation="dynamic_relu")
         neuron.train_activation(X_train, y_train, self.activation_epochs)
         neuron.train_weights(X_train, y_train, self.weight_epochs)
         return neuron
@@ -52,7 +51,7 @@ class ModelTrainer:
                                 input_dim: int) -> Neuron:
         """Train neuron with fixed step function (no activation training)."""
         print("\n4. Training Fixed Step Neuron")
-        neuron = NeuronFactory.create_fixed_step_neuron(input_dim)
+        neuron = Neuron(input_dim, activation="fixed_step")
         neuron.train_weights(X_train, y_train, self.weight_epochs)
         return neuron
     
@@ -60,7 +59,7 @@ class ModelTrainer:
                                    input_dim: int) -> Neuron:
         """Train neuron with adaptive step function."""
         print("\n5. Training Adaptive Step Neuron")
-        neuron = NeuronFactory.create_adaptive_step_neuron(input_dim)
+        neuron = Neuron(input_dim, activation="adaptive_step")
         neuron.train_activation(X_train, y_train, self.activation_epochs)
         neuron.train_weights(X_train, y_train, self.weight_epochs)
         return neuron
@@ -110,7 +109,7 @@ class ModelEvaluator:
         """Evaluate custom neuron."""
         predictions = neuron.predict(X_test)
         accuracy = accuracy_score(y_test, predictions)
-        model_info = neuron.activation_fn.get_info()
+        model_info = neuron.activation_info
         result = ModelResult(
             dataset=self.dataset_name,
             model_name=name,
