@@ -51,7 +51,7 @@ class PerceptronExperiment:
         )
         self.evaluator.evaluate_neuron(fixed_neuron, X_test, y_test, "Fixed ReLU Neuron")
         self.evaluator.evaluate_neuron(dynamic_neuron, X_test, y_test, "Dynamic ReLU Neuron")
-        self.evaluator.evaluate_neuron(sigmoid_neuron, X_test, y_test, "Sigmoid Neuron (Soft Perceptron)")
+        self.evaluator.evaluate_neuron(sigmoid_neuron, X_test, y_test, "Sigmoid Neuron")
         
         # 4. Display comprehensive results
         self.evaluator.print_comparison()

@@ -50,8 +50,8 @@ class ModelTrainer:
     
     def train_sigmoid_neuron(self, X_train: np.ndarray, y_train: np.ndarray,
                              input_dim: int) -> Neuron:
-        """Train a sigmoid neuron (soft perceptron) with fully differentiable learning."""
-        print("\n4. Training Sigmoid Neuron (Soft Perceptron)")
+        """Train a sigmoid neuron with fully differentiable learning."""
+        print("\n4. Training Sigmoid Neuron")
         neuron = Neuron(input_dim, activation="sigmoid")
         # Seamless joint training: weights + activation together.
         neuron.train(X_train, y_train, epochs=self.weight_epochs, loss="bce", train_activation=True)
