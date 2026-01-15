@@ -11,7 +11,6 @@ import numpy as np
 VALID_ACTIVATIONS = {
     "fixed_relu",
     "dynamic_relu",
-    "sigmoid",
 }
 
 
@@ -126,13 +125,8 @@ class Neuron:
                 z = self._compute_weighted_sum(Xb)
                 p = self._activation_forward(z)
 
-                # For sigmoid+BCE: dL/dz = p - y.
-                # For other continuous activations we apply chain rule.
-                if self.activation_state.name == "sigmoid":
-                    dz = p - yb
-                else:
-                    d_act = self._activation_derivative(z)
-                    dz = (p - yb) * d_act
+                d_act = self._activation_derivative(z)
+                dz = (p - yb) * d_act
 
                 grad_w = (Xb.T @ dz) / len(Xb)
                 grad_b = float(np.mean(dz))
@@ -148,19 +142,11 @@ class Neuron:
             a = self.activation_state.params["a"]
             b = self.activation_state.params["b"]
             return f"Dynamic ReLU: max({a:.4f}, {b:.4f}*x)"
-        if self.activation_state.name == "sigmoid":
-            threshold = self.activation_state.params["threshold"]
-            steepness = self.activation_state.params["steepness"]
-            return f"Sigmoid: sigmoid({steepness:.4f}*(x - {threshold:.4f}))"
         return self.activation_state.name
 
     def _init_activation_params(self, activation: str) -> Dict[str, float]:
         if activation == "dynamic_relu":
             return {"a": 0.0, "b": 1.0}
-        if activation == "sigmoid":
-            # Steepness controls how close we are to a hard step.
-            # Keep it moderate so gradients don't vanish immediately.
-            return {"threshold": 0.0, "steepness": 1.0}
         return {}
 
     def _activation_forward(self, z: np.ndarray) -> np.ndarray:
@@ -170,13 +156,6 @@ class Neuron:
             a = self.activation_state.params["a"]
             b = self.activation_state.params["b"]
             return np.where(b * z > a, b * z, a)
-        if self.activation_state.name == "sigmoid":
-            threshold = self.activation_state.params["threshold"]
-            steepness = self.activation_state.params["steepness"]
-            t = steepness * (z - threshold)
-            # Numerically stable sigmoid
-            t = np.clip(t, -60.0, 60.0)
-            return 1.0 / (1.0 + np.exp(-t))
         raise ValueError(f"Unknown activation: {self.activation_state.name}")
 
     def _activation_derivative(self, z: np.ndarray) -> np.ndarray:
@@ -187,10 +166,6 @@ class Neuron:
             a = self.activation_state.params["a"]
             b = self.activation_state.params["b"]
             return np.where(b * z > a, b, 0.0)
-        if self.activation_state.name == "sigmoid":
-            p = self._activation_forward(z)
-            steepness = self.activation_state.params["steepness"]
-            return steepness * p * (1.0 - p)
         return np.zeros_like(z, dtype=float)
 
     def _train_activation_params(self, z: np.ndarray, error: np.ndarray) -> None:
@@ -203,17 +178,3 @@ class Neuron:
             grad_b = np.mean(error * mask_b_active * z)
             self.activation_state.params["a"] -= self.learning_rate * grad_a
             self.activation_state.params["b"] -= self.learning_rate * grad_b
-        elif self.activation_state.name == "sigmoid":
-            # Train threshold (and optionally steepness) using a sigmoid surrogate.
-            threshold = self.activation_state.params["threshold"]
-            steepness = self.activation_state.params["steepness"]
-            p = self._activation_forward(z)
-            dp_dthreshold = -steepness * p * (1.0 - p)
-            grad_threshold = np.mean(error * dp_dthreshold)
-            self.activation_state.params["threshold"] -= self.learning_rate * grad_threshold
-
-            # Optional: allow steepness to adapt gently (kept stable via clipping)
-            dp_dsteepness = (z - threshold) * p * (1.0 - p)
-            grad_steepness = np.mean(error * dp_dsteepness)
-            self.activation_state.params["steepness"] -= self.learning_rate * grad_steepness
-            self.activation_state.params["steepness"] = float(np.clip(self.activation_state.params["steepness"], 0.1, 50.0))

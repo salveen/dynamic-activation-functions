@@ -43,17 +43,8 @@ class ModelTrainer:
         """Train neuron with dynamic learnable activation."""
         print("\n3. Training Dynamic ReLU Neuron")
         neuron = Neuron(input_dim, activation="dynamic_relu")
-        neuron.train_activation(X_train, y_train, self.activation_epochs)
         neuron.train_weights(X_train, y_train, self.weight_epochs)
-        return neuron
-    
-    def train_sigmoid_neuron(self, X_train: np.ndarray, y_train: np.ndarray,
-                             input_dim: int) -> Neuron:
-        """Train a sigmoid neuron (soft perceptron) with fully differentiable learning."""
-        print("\n4. Training Sigmoid Neuron (Soft Perceptron)")
-        neuron = Neuron(input_dim, activation="sigmoid")
         neuron.train_activation(X_train, y_train, self.activation_epochs)
-        neuron.train_weights(X_train, y_train, self.weight_epochs)
         return neuron
 
 
@@ -68,6 +59,7 @@ class ModelResult:
     model_name: str = ""
     accuracy: float = 0.0
     model_info: str = ""
+    seed: int = 0
     timestamp: str = ""
 
 
@@ -77,9 +69,10 @@ class ModelEvaluator:
     Follows Single Responsibility Principle.
     """
     
-    def __init__(self, dataset_name: str = "unknown"):
+    def __init__(self, dataset_name: str = "unknown", seed: int = 0):
         self.results: List[ModelResult] = []
         self.dataset_name = dataset_name
+        self.seed = seed
         self.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     def evaluate_sklearn_model(self, model: Perceptron, X_test: np.ndarray, 
@@ -91,6 +84,7 @@ class ModelEvaluator:
             dataset=self.dataset_name,
             model_name=name,
             accuracy=accuracy,
+            seed=self.seed,
             timestamp=self.timestamp
         )
         self.results.append(result)
@@ -107,6 +101,7 @@ class ModelEvaluator:
             model_name=name,
             accuracy=accuracy,
             model_info=model_info,
+            seed=self.seed,
             timestamp=self.timestamp
         )
         self.results.append(result)
