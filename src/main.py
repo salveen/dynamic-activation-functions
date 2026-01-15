@@ -74,11 +74,11 @@ def compute_statistics(accuracies: List[float]) -> Dict[str, float]:
     """Compute statistics for a list of accuracy values."""
     arr = np.array(accuracies)
     return {
-        "mean": float(np.mean(arr)),
-        "std": float(np.std(arr)),
-        "min": float(np.min(arr)),
-        "max": float(np.max(arr)),
-        "range": float(np.max(arr) - np.min(arr)),
+        "mean": round(float(np.mean(arr)),4),
+        "std": round(float(np.std(arr)),4),
+        "min": round(float(np.min(arr)),4),
+        "max": round(float(np.max(arr)),4),
+        "range": round(float(np.max(arr) - np.min(arr)),4),
         "n_runs": len(arr),
     }
 
@@ -121,11 +121,11 @@ def print_statistics_table(dataset_name: str, model_results: Dict[str, List[floa
 def main():
     """Main entry point for the experiment."""
     # Configuration
-    NUM_SEEDS = 100
+    NUM_SEEDS = 50
     BASE_SEED = 42
     seeds = [BASE_SEED + i for i in range(NUM_SEEDS)]
     
-    datasets = ['breast_cancer', 'titanic', 'heart_disease']
+    datasets = ['breast_cancer', 'titanic', 'heart_disease', 'banknote']
     
     # Store all results: {dataset: {model: [accuracies]}}
     all_dataset_results: Dict[str, Dict[str, List[float]]] = {}

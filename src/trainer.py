@@ -7,7 +7,7 @@ This module handles training orchestration and model evaluation.
 import numpy as np
 import pandas as pd
 from dataclasses import dataclass, asdict
-from typing import List
+from typing import List, Optional
 from pathlib import Path
 from sklearn.linear_model import Perceptron
 from sklearn.neural_network import MLPClassifier
@@ -19,10 +19,19 @@ from models import Neuron
 class ModelTrainer:
     """Orchestrates the training of different neuron models."""
     
-    def __init__(self, activation_epochs: int = 100, weight_epochs: int = 100, seed: int = 42):
+    def __init__(
+        self,
+        activation_epochs: int = 1000,
+        weight_epochs: int = 1000,
+        seed: int = 42,
+        weight_lr: float = 0.01,
+        activation_lr: Optional[float] = None,
+    ):
         self.activation_epochs = activation_epochs
         self.weight_epochs = weight_epochs
         self.seed = seed
+        self.weight_lr = weight_lr
+        self.activation_lr = activation_lr if activation_lr is not None else weight_lr
     
     def train_baseline_sklearn(self, X_train: np.ndarray, y_train: np.ndarray) -> Perceptron:
         """Train sklearn's perceptron as baseline."""
@@ -35,7 +44,7 @@ class ModelTrainer:
         model = MLPClassifier(
             hidden_layer_sizes=(),  # No hidden layers = single neuron
             activation='logistic',  # Sigmoid activation
-            max_iter=1000,  # Higher iterations for convergence
+            max_iter=self.weight_epochs,
             learning_rate_init=0.01,
             random_state=self.seed
         )
@@ -45,14 +54,25 @@ class ModelTrainer:
     def train_fixed_neuron(self, X_train: np.ndarray, y_train: np.ndarray, 
                           input_dim: int) -> Neuron:
         """Train neuron with fixed ReLU (no activation training)."""
-        neuron = Neuron(input_dim, activation="fixed_relu")
+        neuron = Neuron(
+            input_dim,
+            activation="fixed_relu",
+            learning_rate=self.weight_lr,
+            weight_lr=self.weight_lr,
+        )
         neuron.train_weights(X_train, y_train, self.weight_epochs)
         return neuron
     
     def train_dynamic_neuron(self, X_train: np.ndarray, y_train: np.ndarray, 
                             input_dim: int) -> Neuron:
         """Train neuron with dynamic learnable activation."""
-        neuron = Neuron(input_dim, activation="dynamic_relu")
+        neuron = Neuron(
+            input_dim,
+            activation="dynamic_relu",
+            learning_rate=self.weight_lr,
+            weight_lr=self.weight_lr,
+            activation_lr=self.activation_lr,
+        )
         neuron.train_weights(X_train, y_train, self.weight_epochs)
         neuron.train_activation(X_train, y_train, self.activation_epochs)
         return neuron
@@ -60,7 +80,12 @@ class ModelTrainer:
     def train_sigmoid_neuron(self, X_train: np.ndarray, y_train: np.ndarray,
                              input_dim: int) -> Neuron:
         """Train neuron with fixed sigmoid activation."""
-        neuron = Neuron(input_dim, activation="fixed_sigmoid")
+        neuron = Neuron(
+            input_dim,
+            activation="fixed_sigmoid",
+            learning_rate=self.weight_lr,
+            weight_lr=self.weight_lr,
+        )
         neuron.train_weights(X_train, y_train, self.weight_epochs)
         return neuron
 

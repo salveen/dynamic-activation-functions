@@ -10,7 +10,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
 
-DatasetType = Literal['breast_cancer', 'titanic', 'heart_disease']
+DatasetType = Literal['breast_cancer', 'titanic', 'heart_disease', 'banknote']
 
 
 @dataclass
@@ -43,17 +43,20 @@ class DataManager:
             X, y = self._load_titanic()
         elif self.config.dataset_type == 'heart_disease':
             X, y = self._load_heart_disease()
+        elif self.config.dataset_type == 'banknote':
+            X, y = self._load_banknote()
         else:
             raise ValueError(f"Unknown dataset type: {self.config.dataset_type}")
         
         # Scale features
         X = self.scaler.fit_transform(X)
         
-        # Split into train and test
+        # Split into train and test (stratified to ensure both classes in each split)
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, 
             test_size=self.config.test_size, 
-            random_state=self.config.random_state
+            random_state=self.config.random_state,
+            stratify=y
         )
         
         return X_train, X_test, y_train, y_test
@@ -112,4 +115,22 @@ class DataManager:
         y = target.map(mapping)
         if y.isna().any():
             raise ValueError("Unable to map some heart-disease targets to binary values.")
+        return feature_df.to_numpy(dtype=float), y.to_numpy(dtype=int)
+
+    def _load_banknote(self) -> Tuple[np.ndarray, np.ndarray]:
+        """Load the Banknote Authentication dataset (OpenML id=1462).
+        
+        Binary classification with 4 features extracted from wavelet-transformed
+        images of banknotes: variance, skewness, curtosis, and entropy.
+        Target: 0 = authentic (class 1 in raw data), 1 = forged (class 2 in raw data).
+        """
+        dataset = fetch_openml(data_id=1462, as_frame=True)
+        feature_df = dataset.data.copy()
+        target = dataset.target.astype(str).str.strip()
+        feature_df = feature_df.apply(pd.to_numeric, errors='coerce')
+        feature_df = feature_df.fillna(feature_df.median())
+        mapping = {'1': 0, '2': 1}  # Class 1 = authentic (0), Class 2 = forged (1)
+        y = target.map(mapping)
+        if y.isna().any():
+            raise ValueError("Unable to map some banknote targets to binary values.")
         return feature_df.to_numpy(dtype=float), y.to_numpy(dtype=int)

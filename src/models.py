@@ -25,11 +25,20 @@ class ActivationState:
 class Neuron:
     """A single neuron with optional learnable activation parameters."""
 
-    def __init__(self, input_dim: int, activation: str = "fixed_relu", learning_rate: float = 0.01):
+    def __init__(
+        self,
+        input_dim: int,
+        activation: str = "fixed_relu",
+        learning_rate: float = 0.01,
+        weight_lr: float | None = None,
+        activation_lr: float | None = None,
+    ):
         if activation not in VALID_ACTIVATIONS:
             raise ValueError(f"Unsupported activation '{activation}'. Choose from {sorted(VALID_ACTIVATIONS)}")
         self.input_dim = input_dim
         self.learning_rate = learning_rate
+        self.weight_lr = weight_lr if weight_lr is not None else learning_rate
+        self.activation_lr = activation_lr if activation_lr is not None else learning_rate
         self.activation_state = ActivationState(activation, self._init_activation_params(activation))
         self.weights = np.random.randn(input_dim) * 0.01
         self.bias = 0.0
@@ -52,10 +61,29 @@ class Neuron:
         z = self._compute_weighted_sum(X)
         return self._activation_forward(z)
     
-    def train_activation(self, X: np.ndarray, y: np.ndarray, epochs: int) -> None:
-        """Train only activation function parameters (freeze weights)."""
-        if self.activation_state.name in {"fixed_relu"}:
+    def train_activation(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        epochs: int,
+        patience: int = 10,
+        min_delta: float = 1e-6,
+    ) -> None:
+        """Train only activation function parameters (freeze weights).
+        
+        Args:
+            X: Features
+            y: Binary labels
+            epochs: Max number of epochs (early stopping may halt sooner)
+            patience: Stop if loss doesn't improve for this many consecutive epochs
+            min_delta: Minimum change in loss to count as improvement
+        """
+        if self.activation_state.name in {"fixed_relu", "fixed_sigmoid"}:
             return
+        
+        best_loss = float('inf')
+        epochs_without_improvement = 0
+        y = y.astype(float)
         
         for epoch in range(epochs):
             # Forward pass
@@ -67,6 +95,17 @@ class Neuron:
             
             # Update activation function parameters
             self._train_activation_params(z, error)
+            
+            # Compute loss for early stopping
+            epoch_loss = float(np.mean(error ** 2))
+            
+            if epoch_loss < best_loss - min_delta:
+                best_loss = epoch_loss
+                epochs_without_improvement = 0
+            else:
+                epochs_without_improvement += 1
+                if epochs_without_improvement >= patience:
+                    break  # Early stopping
         
     
     def train_weights(
@@ -77,19 +116,21 @@ class Neuron:
         batch_size: int = 32,
         shuffle: bool = True,
         seed: int | None = None,
+        patience: int = 10,
+        min_delta: float = 1e-6,
     ) -> None:
         """Train weights with **mini-batch SGD** (fully differentiable path).
 
         Args:
             X: Features, shape (n_samples, n_features)
             y: Binary labels (0/1), shape (n_samples,)
-            epochs: Number of passes over the dataset
+            epochs: Max number of passes over the dataset (early stopping may halt sooner)
             batch_size: Mini-batch size. If >= n_samples, behaves like full-batch GD.
             shuffle: Shuffle samples each epoch
             seed: Optional RNG seed for deterministic shuffling
+            patience: Stop if loss doesn't improve for this many consecutive epochs
+            min_delta: Minimum change in loss to count as improvement
         """
-
-        # Silent mode: no console output
 
         y = y.astype(float)
         n = len(X)
@@ -103,6 +144,9 @@ class Neuron:
             bs = n
 
         rng = np.random.default_rng(seed)
+
+        best_loss = float('inf')
+        epochs_without_improvement = 0
 
         for _epoch in range(epochs):
             if shuffle:
@@ -125,8 +169,21 @@ class Neuron:
 
                 grad_w = (Xb.T @ dz) / len(Xb)
                 grad_b = float(np.mean(dz))
-                self.weights -= self.learning_rate * grad_w
-                self.bias -= self.learning_rate * grad_b
+                self.weights -= self.weight_lr * grad_w
+                self.bias -= self.weight_lr * grad_b
+
+            # Compute epoch loss for early stopping
+            z_full = self._compute_weighted_sum(X)
+            p_full = self._activation_forward(z_full)
+            epoch_loss = float(np.mean((p_full - y) ** 2))
+
+            if epoch_loss < best_loss - min_delta:
+                best_loss = epoch_loss
+                epochs_without_improvement = 0
+            else:
+                epochs_without_improvement += 1
+                if epochs_without_improvement >= patience:
+                    break  # Early stopping
 
     @property
     def activation_info(self) -> str:
@@ -178,5 +235,5 @@ class Neuron:
             mask_b_active = (b * z > a).astype(float)
             grad_a = np.mean(error * mask_a_active)
             grad_b = np.mean(error * mask_b_active * z)
-            self.activation_state.params["a"] -= self.learning_rate * grad_a
-            self.activation_state.params["b"] -= self.learning_rate * grad_b
+            self.activation_state.params["a"] -= self.activation_lr * grad_a
+            self.activation_state.params["b"] -= self.activation_lr * grad_b
