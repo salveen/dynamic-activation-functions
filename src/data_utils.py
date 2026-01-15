@@ -56,11 +56,6 @@ class DataManager:
             random_state=self.config.random_state
         )
         
-        print(f"Dataset: {self.config.dataset_type}")
-        print(f"Shape: X_train {X_train.shape}, y_train {y_train.shape}")
-        print(f"Classes: {np.unique(y)}")
-        print("-" * 60)
-        
         return X_train, X_test, y_train, y_test
     
     def _load_breast_cancer(self) -> Tuple[np.ndarray, np.ndarray]:

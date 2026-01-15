@@ -28,13 +28,8 @@ class PerceptronExperiment:
         self.trainer = ModelTrainer()
         self.evaluator = ModelEvaluator(dataset_name=dataset_name, seed=seed)
     
-    def run(self, verbose: bool = True) -> Dict[str, float]:
+    def run(self, verbose: bool = False) -> Dict[str, float]:
         """Execute the complete experiment pipeline."""
-        if verbose:
-            print("=" * 60)
-            print("PERCEPTRON EXPERIMENT WITH ADAPTIVE ACTIVATIONS")
-            print("=" * 60)
-            print()
         
         # Set numpy seed for reproducibility
         np.random.seed(self.seed)
@@ -47,11 +42,7 @@ class PerceptronExperiment:
         sklearn_model = self.trainer.train_baseline_sklearn(X_train, y_train)
         fixed_neuron = self.trainer.train_fixed_neuron(X_train, y_train, input_dim)
         dynamic_neuron = self.trainer.train_dynamic_neuron(X_train, y_train, input_dim)
-        
-        if verbose:
-            print("\n" + "-" * 60)
-            print("EVALUATION ON TEST SET")
-            print("-" * 60)
+        sigmoid_neuron = self.trainer.train_sigmoid_neuron(X_train, y_train, input_dim)
         
         # 3. Evaluate all models
         results = {}
@@ -67,9 +58,8 @@ class PerceptronExperiment:
         result = self.evaluator.evaluate_neuron(dynamic_neuron, X_test, y_test, "Dynamic ReLU Neuron")
         results["Dynamic ReLU Neuron"] = result.accuracy
         
-        if verbose:
-            # 4. Display comprehensive results
-            self.evaluator.print_comparison()
+        result = self.evaluator.evaluate_neuron(sigmoid_neuron, X_test, y_test, "Fixed Sigmoid Neuron")
+        results["Fixed Sigmoid Neuron"] = result.accuracy
         
         return results
 
@@ -83,63 +73,51 @@ def compute_statistics(accuracies: List[float]) -> Dict[str, float]:
         "min": float(np.min(arr)),
         "max": float(np.max(arr)),
         "range": float(np.max(arr) - np.min(arr)),
+        "n_runs": len(arr),
     }
+
+
+def save_statistics_to_csv(
+    all_dataset_results: Dict[str, Dict[str, List[float]]], 
+    filepath: str = "experiment_statistics.csv"
+) -> None:
+    """Save statistics summary to CSV file."""
+    import pandas as pd
+    
+    rows = []
+    for dataset_name, model_results in all_dataset_results.items():
+        for model_name, accuracies in model_results.items():
+            stats = compute_statistics(accuracies)
+            # Classify convergence
+            convergence = "STABLE" if stats['std'] < 0.02 else "VARIABLE" if stats['std'] < 0.05 else "DIVERGENT"
+            rows.append({
+                "dataset": dataset_name,
+                "model_name": model_name,
+                "mean": stats["mean"],
+                "std": stats["std"],
+                "convergence": convergence,
+                "min": stats["min"],
+                "max": stats["max"],
+                "range": stats["range"],
+                "n_runs": stats["n_runs"],
+            })
+    
+    df = pd.DataFrame(rows)
+    df.to_csv(filepath, index=False)
+    return
 
 
 def print_statistics_table(dataset_name: str, model_results: Dict[str, List[float]]) -> None:
     """Print a formatted statistics table for all models."""
-    print("\n" + "=" * 80)
-    print(f"STATISTICS SUMMARY FOR: {dataset_name.upper()}")
-    print("=" * 80)
-    
-    # Header
-    print(f"\n{'Model':<35} {'Mean':>8} {'Std':>8} {'Min':>8} {'Max':>8} {'Range':>8}")
-    print("-" * 80)
-    
-    for model_name, accuracies in model_results.items():
-        stats = compute_statistics(accuracies)
-        print(f"{model_name:<35} {stats['mean']:>8.4f} {stats['std']:>8.4f} "
-              f"{stats['min']:>8.4f} {stats['max']:>8.4f} {stats['range']:>8.4f}")
-    
-    # Print individual runs
-    print("\n" + "-" * 80)
-    print("Individual Run Results:")
-    print("-" * 80)
-    
-    n_seeds = len(next(iter(model_results.values())))
-    print(f"\n{'Seed':<6}", end="")
-    for model_name in model_results.keys():
-        short_name = model_name[:20] + "..." if len(model_name) > 20 else model_name
-        print(f"{short_name:>25}", end="")
-    print()
-    print("-" * 80)
-    
-    for i in range(n_seeds):
-        print(f"{i:<6}", end="")
-        for model_name in model_results.keys():
-            print(f"{model_results[model_name][i]:>25.4f}", end="")
-        print()
+    return
 
 
 def main():
     """Main entry point for the experiment."""
-    print("=" * 80)
-    print("MULTI-SEED EXPERIMENT: Analyzing Model Variance")
-    print("=" * 80)
-    print()
-    print("Available datasets:")
-    print("  1. breast_cancer - Breast Cancer Wisconsin (569 samples, 30 features)")
-    print("  2. titanic - Passenger survival (with engineered categorical features)")
-    print("  3. heart_disease - UCI Heart Disease (13 clinical measurements)")
-    print()
-    
     # Configuration
-    NUM_SEEDS = 10
+    NUM_SEEDS = 100
     BASE_SEED = 42
     seeds = [BASE_SEED + i for i in range(NUM_SEEDS)]
-    
-    print(f"Running {NUM_SEEDS} seeds: {seeds}")
-    print()
     
     datasets = ['breast_cancer', 'titanic', 'heart_disease']
     
@@ -148,43 +126,25 @@ def main():
     all_evaluators = []
     
     for dataset_name in datasets:
-        print("\n" + "=" * 80)
-        print(f"RUNNING EXPERIMENTS ON: {dataset_name.upper()}")
-        print("=" * 80)
-        
         model_results: Dict[str, List[float]] = defaultdict(list)
         
         for seed_idx, seed in enumerate(seeds):
-            print(f"\n--- Seed {seed_idx + 1}/{NUM_SEEDS} (seed={seed}) ---")
-            
             config = DatasetConfig(dataset_type=dataset_name, random_state=seed)
             experiment = PerceptronExperiment(config, dataset_name=dataset_name, seed=seed)
             
-            # Run with reduced verbosity after first run
-            verbose = (seed_idx == 0)
-            results = experiment.run(verbose=verbose)
+            results = experiment.run(verbose=False)
             
             # Collect results
             for model_name, accuracy in results.items():
                 model_results[model_name].append(accuracy)
             
             all_evaluators.append(experiment.evaluator)
-            
-            if not verbose:
-                # Print brief summary for non-verbose runs
-                summary = " | ".join([f"{name[:15]}:{acc:.4f}" for name, acc in results.items()])
-                print(f"  Results: {summary}")
         
         all_dataset_results[dataset_name] = dict(model_results)
         
-        # Print statistics for this dataset
-        print_statistics_table(dataset_name, model_results)
+        # Statistics computed later for CSV only
     
     # Save all results to CSV
-    print("\n" + "=" * 80)
-    print("SAVING RESULTS")
-    print("=" * 80)
-    
     if all_evaluators:
         # Collect all results
         all_results = []
@@ -195,25 +155,13 @@ def main():
         final_evaluator = ModelEvaluator()
         final_evaluator.results = all_results
         
-        # Save to a single file (overwrite mode)
+        # Save individual runs to CSV
         final_evaluator.save_to_csv("experiment_results.csv", append=False)
         
-        print(f"\n✓ All results saved to: experiment_results.csv")
-        print(f"  Total experiments: {len(all_results)}")
+        # Save statistics summary to CSV
+        save_statistics_to_csv(all_dataset_results, "experiment_statistics.csv")
     
-    # Final summary
-    print("\n" + "=" * 80)
-    print("CONVERGENCE ANALYSIS")
-    print("=" * 80)
-    
-    for dataset_name, model_results in all_dataset_results.items():
-        print(f"\n{dataset_name.upper()}:")
-        for model_name, accuracies in model_results.items():
-            stats = compute_statistics(accuracies)
-            convergence = "STABLE" if stats['std'] < 0.02 else "VARIABLE" if stats['std'] < 0.05 else "DIVERGENT"
-            print(f"  {model_name}: {convergence} (std={stats['std']:.4f}, range={stats['range']:.4f})")
-    
-    print("\nExperiment complete!")
+    # No console output; results are saved to CSV files only.
 
 
 if __name__ == "__main__":

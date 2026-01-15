@@ -11,6 +11,7 @@ import numpy as np
 VALID_ACTIVATIONS = {
     "fixed_relu",
     "dynamic_relu",
+    "fixed_sigmoid",
 }
 
 
@@ -54,11 +55,7 @@ class Neuron:
     def train_activation(self, X: np.ndarray, y: np.ndarray, epochs: int) -> None:
         """Train only activation function parameters (freeze weights)."""
         if self.activation_state.name in {"fixed_relu"}:
-            print("--- Stage 1: Training Activation Function (skipped for fixed activations) ---")
             return
-
-        print("--- Stage 1: Training Activation Function ---")
-        print(f"    Initial: {self.activation_info}")
         
         for epoch in range(epochs):
             # Forward pass
@@ -71,7 +68,6 @@ class Neuron:
             # Update activation function parameters
             self._train_activation_params(z, error)
         
-        print(f"    Final: {self.activation_info}")
     
     def train_weights(
         self,
@@ -93,8 +89,7 @@ class Neuron:
             seed: Optional RNG seed for deterministic shuffling
         """
 
-        print("--- Stage 2: Training Weights (Mini-batch SGD) ---")
-        print(f"    Using: {self.activation_info}")
+        # Silent mode: no console output
 
         y = y.astype(float)
         n = len(X)
@@ -142,6 +137,8 @@ class Neuron:
             a = self.activation_state.params["a"]
             b = self.activation_state.params["b"]
             return f"Dynamic ReLU: max({a:.4f}, {b:.4f}*x)"
+        if self.activation_state.name == "fixed_sigmoid":
+            return "Fixed Sigmoid: 1 / (1 + exp(-x))"
         return self.activation_state.name
 
     def _init_activation_params(self, activation: str) -> Dict[str, float]:
@@ -156,6 +153,8 @@ class Neuron:
             a = self.activation_state.params["a"]
             b = self.activation_state.params["b"]
             return np.where(b * z > a, b * z, a)
+        if self.activation_state.name == "fixed_sigmoid":
+            return 1.0 / (1.0 + np.exp(-np.clip(z, -500, 500)))
         raise ValueError(f"Unknown activation: {self.activation_state.name}")
 
     def _activation_derivative(self, z: np.ndarray) -> np.ndarray:
@@ -166,6 +165,9 @@ class Neuron:
             a = self.activation_state.params["a"]
             b = self.activation_state.params["b"]
             return np.where(b * z > a, b, 0.0)
+        if self.activation_state.name == "fixed_sigmoid":
+            sig = 1.0 / (1.0 + np.exp(-np.clip(z, -500, 500)))
+            return sig * (1.0 - sig)
         return np.zeros_like(z, dtype=float)
 
     def _train_activation_params(self, z: np.ndarray, error: np.ndarray) -> None:
