@@ -10,6 +10,7 @@ from dataclasses import dataclass, asdict
 from typing import List
 from pathlib import Path
 from sklearn.linear_model import Perceptron
+from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import accuracy_score
 
 from models import Neuron
@@ -18,13 +19,26 @@ from models import Neuron
 class ModelTrainer:
     """Orchestrates the training of different neuron models."""
     
-    def __init__(self, activation_epochs: int = 100, weight_epochs: int = 100):
+    def __init__(self, activation_epochs: int = 100, weight_epochs: int = 100, seed: int = 42):
         self.activation_epochs = activation_epochs
         self.weight_epochs = weight_epochs
+        self.seed = seed
     
     def train_baseline_sklearn(self, X_train: np.ndarray, y_train: np.ndarray) -> Perceptron:
         """Train sklearn's perceptron as baseline."""
-        model = Perceptron(max_iter=self.weight_epochs, eta0=0.01, random_state=42)
+        model = Perceptron(max_iter=self.weight_epochs, eta0=0.01, random_state=self.seed)
+        model.fit(X_train, y_train)
+        return model
+
+    def train_sklearn_sigmoid(self, X_train: np.ndarray, y_train: np.ndarray) -> MLPClassifier:
+        """Train sklearn's MLPClassifier with sigmoid (logistic) activation as single neuron."""
+        model = MLPClassifier(
+            hidden_layer_sizes=(),  # No hidden layers = single neuron
+            activation='logistic',  # Sigmoid activation
+            max_iter=1000,  # Higher iterations for convergence
+            learning_rate_init=0.01,
+            random_state=self.seed
+        )
         model.fit(X_train, y_train)
         return model
     

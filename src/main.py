@@ -25,7 +25,7 @@ class PerceptronExperiment:
         self.dataset_name = dataset_name
         self.seed = seed
         self.data_manager = DataManager(self.dataset_config)
-        self.trainer = ModelTrainer()
+        self.trainer = ModelTrainer(seed=seed)
         self.evaluator = ModelEvaluator(dataset_name=dataset_name, seed=seed)
     
     def run(self, verbose: bool = False) -> Dict[str, float]:
@@ -40,6 +40,7 @@ class PerceptronExperiment:
         
         # 2. Train all models
         sklearn_model = self.trainer.train_baseline_sklearn(X_train, y_train)
+        sklearn_sigmoid = self.trainer.train_sklearn_sigmoid(X_train, y_train)
         fixed_neuron = self.trainer.train_fixed_neuron(X_train, y_train, input_dim)
         dynamic_neuron = self.trainer.train_dynamic_neuron(X_train, y_train, input_dim)
         sigmoid_neuron = self.trainer.train_sigmoid_neuron(X_train, y_train, input_dim)
@@ -51,6 +52,11 @@ class PerceptronExperiment:
             sklearn_model, X_test, y_test, "Sklearn Perceptron (Baseline)"
         )
         results["Sklearn Perceptron (Baseline)"] = result.accuracy
+        
+        result = self.evaluator.evaluate_sklearn_model(
+            sklearn_sigmoid, X_test, y_test, "Sklearn Sigmoid (Baseline)"
+        )
+        results["Sklearn Sigmoid (Baseline)"] = result.accuracy
         
         result = self.evaluator.evaluate_neuron(fixed_neuron, X_test, y_test, "Fixed ReLU Neuron")
         results["Fixed ReLU Neuron"] = result.accuracy
