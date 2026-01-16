@@ -66,7 +66,7 @@ class Neuron:
         X: np.ndarray,
         y: np.ndarray,
         epochs: int,
-        patience: int = 10,
+        patience: int = 20,
         min_delta: float = 1e-6,
     ) -> None:
         """Train only activation function parameters (freeze weights).

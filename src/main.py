@@ -20,12 +20,19 @@ class PerceptronExperiment:
     Follows Facade Pattern to provide simple interface.
     """
     
-    def __init__(self, dataset_config: Optional[DatasetConfig] = None, dataset_name: str = "unknown", seed: int = 42):
+    def __init__(
+        self,
+        dataset_config: Optional[DatasetConfig] = None,
+        dataset_name: str = "unknown",
+        seed: int = 42,
+        weight_lr: float = 0.01,
+        activation_lr: Optional[float] = None,
+    ):
         self.dataset_config = dataset_config or DatasetConfig()
         self.dataset_name = dataset_name
         self.seed = seed
         self.data_manager = DataManager(self.dataset_config)
-        self.trainer = ModelTrainer(seed=seed)
+        self.trainer = ModelTrainer(seed=seed, weight_lr=weight_lr, activation_lr=activation_lr)
         self.evaluator = ModelEvaluator(dataset_name=dataset_name, seed=seed)
     
     def run(self, verbose: bool = False) -> Dict[str, float]:
@@ -124,6 +131,10 @@ def main():
     NUM_SEEDS = 50
     BASE_SEED = 42
     seeds = [BASE_SEED + i for i in range(NUM_SEEDS)]
+
+    # Learning rates
+    WEIGHT_LR = 0.01
+    ACTIVATION_LR = 1
     
     datasets = ['breast_cancer', 'titanic', 'heart_disease', 'banknote']
     
@@ -136,7 +147,13 @@ def main():
         
         for seed_idx, seed in enumerate(seeds):
             config = DatasetConfig(dataset_type=dataset_name, random_state=seed)
-            experiment = PerceptronExperiment(config, dataset_name=dataset_name, seed=seed)
+            experiment = PerceptronExperiment(
+                config,
+                dataset_name=dataset_name,
+                seed=seed,
+                weight_lr=WEIGHT_LR,
+                activation_lr=ACTIVATION_LR,
+            )
             
             results = experiment.run(verbose=False)
             

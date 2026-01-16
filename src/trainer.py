@@ -35,7 +35,7 @@ class ModelTrainer:
     
     def train_baseline_sklearn(self, X_train: np.ndarray, y_train: np.ndarray) -> Perceptron:
         """Train sklearn's perceptron as baseline."""
-        model = Perceptron(max_iter=self.weight_epochs, eta0=0.01, random_state=self.seed)
+        model = Perceptron(max_iter=self.weight_epochs, eta0=self.weight_lr, random_state=self.seed)
         model.fit(X_train, y_train)
         return model
 
@@ -45,7 +45,7 @@ class ModelTrainer:
             hidden_layer_sizes=(),  # No hidden layers = single neuron
             activation='logistic',  # Sigmoid activation
             max_iter=self.weight_epochs,
-            learning_rate_init=0.01,
+            learning_rate_init=self.weight_lr,
             random_state=self.seed
         )
         model.fit(X_train, y_train)
