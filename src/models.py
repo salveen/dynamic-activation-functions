@@ -96,8 +96,9 @@ class Neuron:
             # Update activation function parameters
             self._train_activation_params(z, error)
             
-            # Compute loss for early stopping
-            epoch_loss = float(np.mean(error ** 2))
+            # Recompute loss AFTER the update (z unchanged, only activation params changed)
+            predictions_after = self._activation_forward(z)
+            epoch_loss = float(np.mean((predictions_after - y) ** 2))
             
             if epoch_loss < best_loss - min_delta:
                 best_loss = epoch_loss
