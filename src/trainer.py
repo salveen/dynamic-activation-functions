@@ -7,10 +7,10 @@ This module handles training orchestration and model evaluation.
 import numpy as np
 import pandas as pd
 from dataclasses import dataclass, asdict
-from typing import List
+from typing import List, Optional
 from pathlib import Path
-from datetime import datetime
 from sklearn.linear_model import Perceptron
+from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import accuracy_score
 
 from models import Neuron
@@ -19,48 +19,73 @@ from models import Neuron
 class ModelTrainer:
     """Orchestrates the training of different neuron models."""
     
-    def __init__(self, activation_epochs: int = 50, weight_epochs: int = 100):
+    def __init__(
+        self,
+        activation_epochs: int = 1000,
+        weight_epochs: int = 1000,
+        seed: int = 42,
+        weight_lr: float = 0.01,
+        activation_lr: Optional[float] = None,
+    ):
         self.activation_epochs = activation_epochs
         self.weight_epochs = weight_epochs
+        self.seed = seed
+        self.weight_lr = weight_lr
+        self.activation_lr = activation_lr if activation_lr is not None else weight_lr
     
     def train_baseline_sklearn(self, X_train: np.ndarray, y_train: np.ndarray) -> Perceptron:
         """Train sklearn's perceptron as baseline."""
-        print("1. Training Sklearn Perceptron (Baseline)")
-        model = Perceptron(max_iter=self.weight_epochs, eta0=0.01, random_state=42)
+        model = Perceptron(max_iter=self.weight_epochs, eta0=self.weight_lr, random_state=self.seed)
+        model.fit(X_train, y_train)
+        return model
+
+    def train_sklearn_sigmoid(self, X_train: np.ndarray, y_train: np.ndarray) -> MLPClassifier:
+        """Train sklearn's MLPClassifier with sigmoid (logistic) activation as single neuron."""
+        model = MLPClassifier(
+            hidden_layer_sizes=(),  # No hidden layers = single neuron
+            activation='logistic',  # Sigmoid activation
+            max_iter=self.weight_epochs,
+            learning_rate_init=self.weight_lr,
+            random_state=self.seed
+        )
         model.fit(X_train, y_train)
         return model
     
     def train_fixed_neuron(self, X_train: np.ndarray, y_train: np.ndarray, 
                           input_dim: int) -> Neuron:
         """Train neuron with fixed ReLU (no activation training)."""
-        print("\n2. Training Fixed ReLU Neuron")
-        neuron = Neuron(input_dim, activation="fixed_relu")
+        neuron = Neuron(
+            input_dim,
+            activation="fixed_relu",
+            learning_rate=self.weight_lr,
+            weight_lr=self.weight_lr,
+        )
         neuron.train_weights(X_train, y_train, self.weight_epochs)
         return neuron
     
     def train_dynamic_neuron(self, X_train: np.ndarray, y_train: np.ndarray, 
                             input_dim: int) -> Neuron:
         """Train neuron with dynamic learnable activation."""
-        print("\n3. Training Dynamic ReLU Neuron")
-        neuron = Neuron(input_dim, activation="dynamic_relu")
-        neuron.train_activation(X_train, y_train, self.activation_epochs)
+        neuron = Neuron(
+            input_dim,
+            activation="dynamic_relu",
+            learning_rate=self.weight_lr,
+            weight_lr=self.weight_lr,
+            activation_lr=self.activation_lr,
+        )
         neuron.train_weights(X_train, y_train, self.weight_epochs)
-        return neuron
-    
-    def train_fixed_step_neuron(self, X_train: np.ndarray, y_train: np.ndarray, 
-                                input_dim: int) -> Neuron:
-        """Train neuron with fixed step function (no activation training)."""
-        print("\n4. Training Fixed Step Neuron")
-        neuron = Neuron(input_dim, activation="fixed_step")
-        neuron.train_weights(X_train, y_train, self.weight_epochs)
-        return neuron
-    
-    def train_adaptive_step_neuron(self, X_train: np.ndarray, y_train: np.ndarray, 
-                                   input_dim: int) -> Neuron:
-        """Train neuron with adaptive step function."""
-        print("\n5. Training Adaptive Step Neuron")
-        neuron = Neuron(input_dim, activation="adaptive_step")
         neuron.train_activation(X_train, y_train, self.activation_epochs)
+        return neuron
+
+    def train_sigmoid_neuron(self, X_train: np.ndarray, y_train: np.ndarray,
+                             input_dim: int) -> Neuron:
+        """Train neuron with fixed sigmoid activation."""
+        neuron = Neuron(
+            input_dim,
+            activation="fixed_sigmoid",
+            learning_rate=self.weight_lr,
+            weight_lr=self.weight_lr,
+        )
         neuron.train_weights(X_train, y_train, self.weight_epochs)
         return neuron
 
@@ -76,7 +101,7 @@ class ModelResult:
     model_name: str = ""
     accuracy: float = 0.0
     model_info: str = ""
-    timestamp: str = ""
+    seed: int = 0
 
 
 class ModelEvaluator:
@@ -85,10 +110,10 @@ class ModelEvaluator:
     Follows Single Responsibility Principle.
     """
     
-    def __init__(self, dataset_name: str = "unknown"):
+    def __init__(self, dataset_name: str = "unknown", seed: int = 0):
         self.results: List[ModelResult] = []
         self.dataset_name = dataset_name
-        self.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.seed = seed
     
     def evaluate_sklearn_model(self, model: Perceptron, X_test: np.ndarray, 
                                y_test: np.ndarray, name: str) -> ModelResult:
@@ -99,7 +124,7 @@ class ModelEvaluator:
             dataset=self.dataset_name,
             model_name=name,
             accuracy=accuracy,
-            timestamp=self.timestamp
+            seed=self.seed
         )
         self.results.append(result)
         return result
@@ -115,30 +140,14 @@ class ModelEvaluator:
             model_name=name,
             accuracy=accuracy,
             model_info=model_info,
-            timestamp=self.timestamp
+            seed=self.seed
         )
         self.results.append(result)
         return result
     
     def print_comparison(self) -> None:
-        """Print comprehensive comparison of all models."""
-        print("\n" + "=" * 60)
-        print("FINAL RESULTS COMPARISON")
-        print("=" * 60)
-        
-        for result in self.results:
-            print(f"\n{result.model_name}")
-            print(f"  Accuracy: {result.accuracy:.4f}")
-            if result.model_info:
-                print(f"  Config: {result.model_info}")
-        
-        # Find best performer
-        best_result = max(self.results, key=lambda r: r.accuracy)
-        print("\n" + "-" * 60)
-        print(f"Best Performer: {best_result.model_name} ({best_result.accuracy:.4f})")
-        
-        # Check if adaptive methods improved
-        self._analyze_improvements()
+        """No-op for silent mode."""
+        return
     
     def save_to_csv(self, filepath: str = "results.csv", append: bool = True) -> None:
         """
@@ -149,7 +158,6 @@ class ModelEvaluator:
             append: If True, append to existing file. If False, overwrite.
         """
         if not self.results:
-            print("No results to save.")
             return
         
         # Convert results to DataFrame
@@ -164,29 +172,8 @@ class ModelEvaluator:
         
         # Save to CSV
         df.to_csv(filepath, index=False)
-        print(f"\n✓ Results saved to: {filepath}")
-        print(f"  Total records: {len(df)}")
+        return
     
     def _analyze_improvements(self) -> None:
-        """Analyze if adaptive activation functions showed improvement."""
-        fixed_result = next((r for r in self.results if "Fixed" in r.model_name), None)
-        dynamic_result = next((r for r in self.results if "Dynamic" in r.model_name), None)
-        step_result = next((r for r in self.results if "Adaptive Step" in r.model_name), None)
-        
-        if not fixed_result:
-            return
-        
-        improvements = []
-        if dynamic_result and dynamic_result.accuracy > fixed_result.accuracy:
-            improvements.append(f"  ✓ Dynamic ReLU improved by {(dynamic_result.accuracy - fixed_result.accuracy):.4f}")
-        
-        if step_result and step_result.accuracy > fixed_result.accuracy:
-            improvements.append(f"  ✓ Adaptive Step improved by {(step_result.accuracy - fixed_result.accuracy):.4f}")
-        
-        if improvements:
-            print("\nAdaptive Activation Success:")
-            for imp in improvements:
-                print(imp)
-        else:
-            print("\nNote: Adaptive activations did not outperform fixed ReLU.")
-            print("Performance depends on data complexity and separability.")
+        """No-op for silent mode."""
+        return
