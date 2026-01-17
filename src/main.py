@@ -134,7 +134,7 @@ def main():
 
     # Learning rates
     WEIGHT_LR = 0.01
-    ACTIVATION_LR = 1
+    ACTIVATION_LR = 0.001
     
     datasets = ['breast_cancer', 'titanic', 'heart_disease', 'banknote']
     

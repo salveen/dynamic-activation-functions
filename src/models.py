@@ -85,9 +85,9 @@ class Neuron:
         epochs_without_improvement = 0
         y = y.astype(float)
         
+        z = self._compute_weighted_sum(X)
         for epoch in range(epochs):
             # Forward pass
-            z = self._compute_weighted_sum(X)
             predictions = self._activation_forward(z)
             
             # Compute error (MSE)
@@ -96,7 +96,7 @@ class Neuron:
             # Update activation function parameters
             self._train_activation_params(z, error)
             
-            # Recompute loss AFTER the update (z unchanged, only activation params changed)
+            # compute loss AFTER the update (z unchanged, only activation params changed)
             predictions_after = self._activation_forward(z)
             epoch_loss = float(np.mean((predictions_after - y) ** 2))
             
@@ -206,10 +206,13 @@ class Neuron:
 
     def _activation_forward(self, z: np.ndarray) -> np.ndarray:
         if self.activation_state.name == "fixed_relu":
+            # max(0, z)
             return np.maximum(0, z)
         if self.activation_state.name == "dynamic_relu":
             a = self.activation_state.params["a"]
             b = self.activation_state.params["b"]
+            # max(a, b*z)
+            # training weights -> training activation params
             return np.where(b * z > a, b * z, a)
         if self.activation_state.name == "fixed_sigmoid":
             return 1.0 / (1.0 + np.exp(-np.clip(z, -500, 500)))
