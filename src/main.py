@@ -136,7 +136,10 @@ def main():
     WEIGHT_LR = 0.01
     ACTIVATION_LR = 0.001
     
-    datasets = ['breast_cancer', 'titanic', 'heart_disease', 'banknote']
+    datasets = [
+        # 'breast_cancer', 'titanic', 'heart_disease', 'banknote',
+        'pima_diabetes', 'german_credit', 'adult_income', 'higgs_small'
+    ]
     
     # Store all results: {dataset: {model: [accuracies]}}
     all_dataset_results: Dict[str, Dict[str, List[float]]] = {}
