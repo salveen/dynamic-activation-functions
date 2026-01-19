@@ -12,7 +12,8 @@ from sklearn.preprocessing import StandardScaler
 
 DatasetType = Literal[
     'breast_cancer', 'titanic', 'heart_disease', 'banknote',
-    'pima_diabetes', 'german_credit', 'adult_income', 'higgs_small'
+    'pima_diabetes', 'german_credit', 'adult_income', 'higgs_small',
+    'mnist', 'fashion_mnist', 'cifar10', 'kuzushiji_mnist'
 ]
 
 
@@ -56,6 +57,14 @@ class DataManager:
             X, y = self._load_adult_income()
         elif self.config.dataset_type == 'higgs_small':
             X, y = self._load_higgs_small()
+        elif self.config.dataset_type == 'mnist':
+            X, y = self._load_mnist()
+        elif self.config.dataset_type == 'fashion_mnist':
+            X, y = self._load_fashion_mnist()
+        elif self.config.dataset_type == 'cifar10':
+            X, y = self._load_cifar10()
+        elif self.config.dataset_type == 'kuzushiji_mnist':
+            X, y = self._load_kuzushiji_mnist()
         else:
             raise ValueError(f"Unknown dataset type: {self.config.dataset_type}")
         
@@ -252,3 +261,71 @@ class DataManager:
         if y.isna().any():
             raise ValueError("Unable to map some higgs targets to binary values.")
         return feature_df.to_numpy(dtype=float), y.to_numpy(dtype=int)
+
+    def _load_mnist(self) -> Tuple[np.ndarray, np.ndarray]:
+        """Load the MNIST handwritten digits dataset.
+        
+        Multi-class classification with 784 features (28x28 images).
+        Target: 0-9 digit labels.
+        """
+        dataset = fetch_openml('mnist_784', version=1, as_frame=True)
+        X = dataset.data.to_numpy(dtype=float)
+        y = dataset.target.astype(int).to_numpy()
+        # Normalize pixel values to [0, 1]
+        X = X / 255.0
+        return X, y
+
+    def _load_fashion_mnist(self) -> Tuple[np.ndarray, np.ndarray]:
+        """Load the Fashion-MNIST dataset.
+        
+        Multi-class classification with 784 features (28x28 images).
+        10 classes: T-shirt/top, Trouser, Pullover, Dress, Coat,
+                   Sandal, Shirt, Sneaker, Bag, Ankle boot.
+        Target: 0-9 class labels.
+        """
+        dataset = fetch_openml('Fashion-MNIST', version=1, as_frame=True)
+        X = dataset.data.to_numpy(dtype=float)
+        y = dataset.target.astype(int).to_numpy()
+        # Normalize pixel values to [0, 1]
+        X = X / 255.0
+        return X, y
+
+    def _load_cifar10(self) -> Tuple[np.ndarray, np.ndarray]:
+        """Load the CIFAR-10 dataset (flattened).
+        
+        Multi-class classification with 3072 features (32x32x3 RGB images, flattened).
+        10 classes: airplane, automobile, bird, cat, deer, dog, frog, horse, ship, truck.
+        
+        This is MUCH harder than MNIST/Fashion-MNIST for MLPs because:
+        - Color images (3 channels)
+        - Objects have varying positions, scales, and backgrounds
+        - Standard ReLU networks struggle without convolutions
+        
+        Target: 0-9 class labels.
+        """
+        dataset = fetch_openml('CIFAR_10', version=1, as_frame=True)
+        X = dataset.data.to_numpy(dtype=float)
+        y = dataset.target.astype(int).to_numpy()
+        # Normalize pixel values to [0, 1]
+        X = X / 255.0
+        return X, y
+
+    def _load_kuzushiji_mnist(self) -> Tuple[np.ndarray, np.ndarray]:
+        """Load the Kuzushiji-MNIST dataset (Japanese cursive characters).
+        
+        Multi-class classification with 784 features (28x28 images).
+        10 classes representing cursive Japanese Hiragana characters.
+        
+        Harder than MNIST because:
+        - Characters have more complex strokes
+        - Higher intra-class variation
+        - Characters can look similar between classes
+        
+        Target: 0-9 class labels.
+        """
+        dataset = fetch_openml('Kuzushiji-MNIST', version=1, as_frame=True)
+        X = dataset.data.to_numpy(dtype=float)
+        y = dataset.target.astype(int).to_numpy()
+        # Normalize pixel values to [0, 1]
+        X = X / 255.0
+        return X, y
