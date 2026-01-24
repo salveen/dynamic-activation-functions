@@ -185,25 +185,25 @@ def run_single_seed(
     )
     results["Baseline (ReLU)"] = baseline_result
     
-    # 2. Dynamic MLP (Per-Layer, Joint Training)
-    if verbose:
-        print("\n" + "🔷" * 30)
-    dynamic_result = experiment.run_dynamic(
-        X_train, y_train, X_test, y_test,
-        input_dim=input_dim,
-        output_dim=output_dim,
-    )
-    results["Dynamic (Per-Layer)"] = dynamic_result
+    # # 2. Dynamic MLP (Per-Layer, Joint Training)
+    # if verbose:
+    #     print("\n" + "🔷" * 30)
+    # dynamic_result = experiment.run_dynamic(
+    #     X_train, y_train, X_test, y_test,
+    #     input_dim=input_dim,
+    #     output_dim=output_dim,
+    # )
+    # results["Dynamic (Per-Layer)"] = dynamic_result
     
-    # 3. Dynamic MLP (Per-Neuron, Joint Training)
-    if verbose:
-        print("\n" + "🔷" * 30)
-    per_neuron_result = experiment.run_dynamic_per_neuron(
-        X_train, y_train, X_test, y_test,
-        input_dim=input_dim,
-        output_dim=output_dim,
-    )
-    results["Dynamic (Per-Neuron)"] = per_neuron_result
+    # # 3. Dynamic MLP (Per-Neuron, Joint Training)
+    # if verbose:
+    #     print("\n" + "🔷" * 30)
+    # per_neuron_result = experiment.run_dynamic_per_neuron(
+    #     X_train, y_train, X_test, y_test,
+    #     input_dim=input_dim,
+    #     output_dim=output_dim,
+    # )
+    # results["Dynamic (Per-Neuron)"] = per_neuron_result
     
     # 4. Two-Phase Training (Per-Neuron)
     if verbose:
@@ -281,8 +281,8 @@ def main():
     print("=" * 100)
     
     # Configuration
-    N_SEEDS = 5
-    SEEDS = [42, 123, 456, 789, 1001]
+    N_SEEDS = 20
+    SEEDS = [42, 123, 456, 789, 1001, 1111, 2222, 3333, 4444, 5555, 6666, 7777, 8888, 9999, 1010, 2020, 3030, 4040, 5050, 6060]
     HIDDEN_DIMS = [256, 128]  # Two hidden layers
     EPOCHS = 30
     BATCH_SIZE = 128
