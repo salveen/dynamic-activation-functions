@@ -157,7 +157,14 @@ def run_single_seed(
     seed: int,
     verbose: bool = False,
 ) -> Dict[str, ExperimentResult]:
-    """Run all experiment variants for a single seed."""
+    """
+    Run all experiment variants for a single seed.
+    
+    New approach: Train baseline once, then copy and finetune activations.
+    This is more efficient and ensures fair comparison (same initial weights).
+    """
+    from mlp import create_baseline_mlp
+    from mlp_trainer import MLPTrainer
     
     input_dim = X_train.shape[1]
     output_dim = len(np.unique(y_train))
@@ -175,7 +182,7 @@ def run_single_seed(
     
     results = {}
     
-    # 1. Baseline MLP (ReLU)
+    # 1. Train Baseline MLP (ReLU) - this is the only model we train from scratch
     if verbose:
         print("\n" + "🔷" * 30)
     baseline_result = experiment.run_baseline(
@@ -185,36 +192,37 @@ def run_single_seed(
     )
     results["Baseline (ReLU)"] = baseline_result
     
-    # # 2. Dynamic MLP (Per-Layer, Joint Training)
-    # if verbose:
-    #     print("\n" + "🔷" * 30)
-    # dynamic_result = experiment.run_dynamic(
-    #     X_train, y_train, X_test, y_test,
-    #     input_dim=input_dim,
-    #     output_dim=output_dim,
-    # )
-    # results["Dynamic (Per-Layer)"] = dynamic_result
+    # Get the trained baseline model for copying
+    # We need to recreate it with the same seed to get the same trained model
+    np.random.seed(seed)
+    baseline_model = create_baseline_mlp(
+        input_dim=input_dim,
+        hidden_dims=hidden_dims,
+        output_dim=output_dim,
+        learning_rate=learning_rate,
+    )
     
-    # # 3. Dynamic MLP (Per-Neuron, Joint Training)
-    # if verbose:
-    #     print("\n" + "🔷" * 30)
-    # per_neuron_result = experiment.run_dynamic_per_neuron(
-    #     X_train, y_train, X_test, y_test,
-    #     input_dim=input_dim,
-    #     output_dim=output_dim,
-    # )
-    # results["Dynamic (Per-Neuron)"] = per_neuron_result
+    # Train it again (same seed = same result)
+    trainer = MLPTrainer(
+        epochs=epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        verbose=False,
+    )
+    trainer.train(baseline_model, X_train, y_train, X_test, y_test)
     
-    # 4. Two-Phase Training (Per-Neuron)
+    # 2. Copy baseline and finetune activations (Per-Neuron)
     if verbose:
         print("\n" + "🔷" * 30)
-    two_phase_result = experiment.run_dynamic_two_phase(
-        X_train, y_train, X_test, y_test,
-        input_dim=input_dim,
-        output_dim=output_dim,
+    activation_result = experiment.run_activation_finetuning(
+        baseline_model=baseline_model,
+        X_train=X_train,
+        y_train=y_train,
+        X_test=X_test,
+        y_test=y_test,
         per_neuron=True,
     )
-    results["Two-Phase (Per-Neuron)"] = two_phase_result
+    results["Activation Finetuning (Per-Neuron)"] = activation_result
     
     return results
 
@@ -233,12 +241,10 @@ def run_experiment_suite(
     # Load data once (use first seed for train/test split)
     X_train, X_test, y_train, y_test = load_dataset(dataset_type, random_state=seeds[0])
     
-    # Initialize aggregated results
+    # Initialize aggregated results - updated model names
     model_names = [
         "Baseline (ReLU)",
-        "Dynamic (Per-Layer)",
-        "Dynamic (Per-Neuron)",
-        "Two-Phase (Per-Neuron)",
+        "Activation Finetuning (Per-Neuron)",
     ]
     agg_results = {name: AggregatedResult(name) for name in model_names}
     
@@ -276,8 +282,8 @@ def run_experiment_suite(
 def main():
     """Run the comprehensive MLP comparison experiment."""
     print("=" * 100)
-    print("MLP EXPERIMENT: Baseline vs Dynamic Activations (Multi-Seed)")
-    print("Comparing: ReLU | Dynamic Per-Layer | Dynamic Per-Neuron | Two-Phase")
+    print("MLP EXPERIMENT: Baseline vs Activation Finetuning (Multi-Seed)")
+    print("Approach: Train baseline once, copy model, finetune activations on copy")
     print("=" * 100)
     
     # Configuration
@@ -301,13 +307,50 @@ def main():
     
     all_results = {}
     
-    # Test on Fashion-MNIST (primary test)
+    # # Test on Fashion-MNIST (primary test)
+    # print("\n" + "🌟" * 40)
+    # print("DATASET: FASHION-MNIST")
+    # print("🌟" * 40)
+    
+    # fashion_results = run_experiment_suite(
+    #     dataset_type='fashion_mnist',
+    #     hidden_dims=HIDDEN_DIMS,
+    #     epochs=EPOCHS,
+    #     activation_epochs=ACTIVATION_EPOCHS,
+    #     batch_size=BATCH_SIZE,
+    #     learning_rate=LEARNING_RATE,
+    #     seeds=SEEDS,
+    # )
+    # all_results['fashion_mnist'] = fashion_results
+    # print_results(fashion_results, "Fashion-MNIST", N_SEEDS)
+    
+    # # Test on MNIST (digits - easier baseline)
+    # print("\n" + "🌟" * 40)
+    # print("DATASET: MNIST (Digits)")
+    # print("🌟" * 40)
+    
+    # try:
+    #     mnist_results = run_experiment_suite(
+    #         dataset_type='mnist',
+    #         hidden_dims=HIDDEN_DIMS,
+    #         epochs=EPOCHS,
+    #         activation_epochs=ACTIVATION_EPOCHS,
+    #         batch_size=BATCH_SIZE,
+    #         learning_rate=LEARNING_RATE,
+    #         seeds=SEEDS,
+    #     )
+    #     all_results['mnist'] = mnist_results
+    #     print_results(mnist_results, "MNIST", N_SEEDS)
+    # except Exception as e:
+    #     print(f"Skipping MNIST: {e}")
+    
+    # Test on CIFAR-10 (hardest - color images)
     print("\n" + "🌟" * 40)
-    print("DATASET: FASHION-MNIST")
+    print("DATASET: CIFAR-10 (Color Images)")
     print("🌟" * 40)
     
-    fashion_results = run_experiment_suite(
-        dataset_type='fashion_mnist',
+    cifar_results = run_experiment_suite(
+        dataset_type='cifar10',
         hidden_dims=HIDDEN_DIMS,
         epochs=EPOCHS,
         activation_epochs=ACTIVATION_EPOCHS,
@@ -315,28 +358,8 @@ def main():
         learning_rate=LEARNING_RATE,
         seeds=SEEDS,
     )
-    all_results['fashion_mnist'] = fashion_results
-    print_results(fashion_results, "Fashion-MNIST", N_SEEDS)
-    
-    # Test on MNIST (digits - easier baseline)
-    print("\n" + "🌟" * 40)
-    print("DATASET: MNIST (Digits)")
-    print("🌟" * 40)
-    
-    try:
-        mnist_results = run_experiment_suite(
-            dataset_type='mnist',
-            hidden_dims=HIDDEN_DIMS,
-            epochs=EPOCHS,
-            activation_epochs=ACTIVATION_EPOCHS,
-            batch_size=BATCH_SIZE,
-            learning_rate=LEARNING_RATE,
-            seeds=SEEDS,
-        )
-        all_results['mnist'] = mnist_results
-        print_results(mnist_results, "MNIST", N_SEEDS)
-    except Exception as e:
-        print(f"Skipping MNIST: {e}")
+    all_results['cifar10'] = cifar_results
+    print_results(cifar_results, "CIFAR-10", N_SEEDS)
     
     # Final summary
     print("\n" + "=" * 100)

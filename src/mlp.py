@@ -11,7 +11,7 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
-from activations import Activation, ReLU, DynamicReLU, Sigmoid, Softmax, create_activation
+from activations import Activation, ReLU, DynamicReLU, Sigmoid, DynamicSigmoid, Softmax, create_activation
 from layers import Dense, Dropout
 
 
@@ -209,6 +209,103 @@ class MLP:
         
         return "\n".join(lines)
 
+    def copy(self) -> 'MLP':
+        """
+        Create a deep copy of this MLP with the same weights.
+        
+        Returns:
+            A new MLP instance with copied weights and biases
+        """
+        import copy as copy_module
+        
+        # Create new MLP with same config
+        new_config = copy_module.deepcopy(self.config)
+        new_model = MLP(new_config)
+        
+        # Copy weights and biases from each layer
+        for new_layer, old_layer in zip(new_model.layers, self.layers):
+            if isinstance(new_layer, Dense) and isinstance(old_layer, Dense):
+                new_layer.weights = old_layer.weights.copy()
+                new_layer.bias = old_layer.bias.copy()
+                # Copy activation parameters if they exist
+                if hasattr(old_layer.activation, '_a'):
+                    new_layer.activation._a = np.copy(old_layer.activation._a) if isinstance(old_layer.activation._a, np.ndarray) else old_layer.activation._a
+                if hasattr(old_layer.activation, '_b'):
+                    new_layer.activation._b = np.copy(old_layer.activation._b) if isinstance(old_layer.activation._b, np.ndarray) else old_layer.activation._b
+        
+        new_model.training = self.training
+        return new_model
+
+    def copy_with_dynamic_activations(self, per_neuron: bool = True, activation_lr: float = None) -> 'MLP':
+        """
+        Create a copy of this MLP but with dynamic (learnable) activations.
+        
+        Copies the weights from this model but replaces ReLU activations
+        with DynamicReLU activations in hidden layers.
+        
+        Args:
+            per_neuron: If True, each neuron gets its own a,b parameters
+            activation_lr: Learning rate for activation parameters (defaults to model's learning rate)
+            
+        Returns:
+            A new MLP with same weights but dynamic activations
+        """
+        import copy as copy_module
+        
+        # Create new config with dynamic activations
+        new_config = copy_module.deepcopy(self.config)
+        new_config.hidden_activation = "dynamic_relu"
+        new_config.per_neuron_activation = per_neuron
+        if activation_lr is not None:
+            new_config.activation_lr = activation_lr
+        
+        # Build new model with dynamic activations
+        new_model = MLP(new_config)
+        
+        # Copy weights and biases from each Dense layer
+        for new_layer, old_layer in zip(new_model.layers, self.layers):
+            if isinstance(new_layer, Dense) and isinstance(old_layer, Dense):
+                new_layer.weights = old_layer.weights.copy()
+                new_layer.bias = old_layer.bias.copy()
+        
+        new_model.training = self.training
+        return new_model
+
+    def copy_with_dynamic_sigmoid_activations(self, per_neuron: bool = True, activation_lr: float = None) -> 'MLP':
+        """
+        Create a copy of this MLP but with dynamic Sigmoid activations.
+        
+        Copies the weights from this model but replaces Sigmoid activations
+        with DynamicSigmoid activations in hidden layers.
+        
+        Args:
+            per_neuron: If True, each neuron gets its own a,b parameters
+            activation_lr: Learning rate for activation parameters (defaults to model's learning rate)
+            
+        Returns:
+            A new MLP with same weights but dynamic sigmoid activations
+        """
+        import copy as copy_module
+        
+        # Create new config with dynamic sigmoid activations
+        new_config = copy_module.deepcopy(self.config)
+        new_config.hidden_activation = "dynamic_sigmoid"
+        new_config.per_neuron_activation = per_neuron
+        if activation_lr is not None:
+            new_config.activation_lr = activation_lr
+        
+        # Build new model with dynamic activations
+        new_model = MLP(new_config)
+        
+        # Copy weights and biases from each Dense layer
+        for new_layer, old_layer in zip(new_model.layers, self.layers):
+            if isinstance(new_layer, Dense) and isinstance(old_layer, Dense):
+                new_layer.weights = old_layer.weights.copy()
+                new_layer.bias = old_layer.bias.copy()
+        
+        new_model.training = self.training
+        return new_model
+
 
 def create_baseline_mlp(
     input_dim: int,
@@ -256,5 +353,63 @@ def create_dynamic_mlp(
         dropout_rate=dropout_rate,
         learning_rate=learning_rate,
         activation_lr=activation_lr,
+    )
+    return MLP(config)
+
+
+def create_baseline_sigmoid_mlp(
+    input_dim: int,
+    hidden_dims: List[int],
+    output_dim: int,
+    learning_rate: float = 0.01,
+    dropout_rate: float = 0.0,
+) -> MLP:
+    """
+    Create baseline MLP with standard Sigmoid activations.
+    
+    Architecture: Sigmoid hidden layers + Softmax output
+    
+    Note: Uses Xavier initialization which is better suited for Sigmoid.
+    """
+    config = MLPConfig(
+        input_dim=input_dim,
+        hidden_dims=hidden_dims,
+        output_dim=output_dim,
+        hidden_activation="sigmoid",
+        output_activation="softmax",
+        dropout_rate=dropout_rate,
+        weight_init="xavier",  # Xavier init is better for sigmoid
+        learning_rate=learning_rate,
+    )
+    return MLP(config)
+
+
+def create_dynamic_sigmoid_mlp(
+    input_dim: int,
+    hidden_dims: List[int],
+    output_dim: int,
+    learning_rate: float = 0.01,
+    activation_lr: float = 0.01,
+    dropout_rate: float = 0.0,
+    per_neuron: bool = False,
+) -> MLP:
+    """
+    Create MLP with dynamic (learnable) Sigmoid activations.
+    
+    Architecture: Dynamic Sigmoid hidden layers + Softmax output
+    
+    Note: Uses Xavier initialization which is better suited for Sigmoid.
+    """
+    config = MLPConfig(
+        input_dim=input_dim,
+        hidden_dims=hidden_dims,
+        output_dim=output_dim,
+        hidden_activation="dynamic_sigmoid",
+        output_activation="softmax",
+        dropout_rate=dropout_rate,
+        weight_init="xavier",  # Xavier init is better for sigmoid
+        learning_rate=learning_rate,
+        activation_lr=activation_lr,
+        per_neuron_activation=per_neuron,
     )
     return MLP(config)

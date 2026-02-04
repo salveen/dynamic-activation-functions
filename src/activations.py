@@ -167,6 +167,112 @@ class Sigmoid(Activation):
         return "Sigmoid: 1 / (1 + exp(-x))"
 
 
+class DynamicSigmoid(Activation):
+    """
+    Dynamic Sigmoid with learnable parameters: 1 / (1 + exp(-b*(x - a)))
+    
+    Supports both per-layer (scalar a, b) and per-neuron (vector a, b) modes.
+    
+    Parameters:
+        a: learnable horizontal shift (bias/threshold)
+        b: learnable steepness/slope factor
+        num_neurons: If provided, creates per-neuron parameters
+        
+    The function is: sigmoid(b * (x - a)) = 1 / (1 + exp(-b * (x - a)))
+    When a=0, b=1, this reduces to the standard sigmoid.
+    """
+    
+    def __init__(self, learning_rate: float = 0.01, num_neurons: int = None):
+        super().__init__(learning_rate)
+        self.num_neurons = num_neurons
+        self.per_neuron = num_neurons is not None
+        
+        if self.per_neuron:
+            # Per-neuron parameters: each neuron has its own a, b
+            self._a = np.zeros(num_neurons)  # Horizontal shift (initially 0)
+            self._b = np.ones(num_neurons)   # Steepness (initially 1 = standard sigmoid)
+        else:
+            # Scalar parameters (shared across all neurons)
+            self._a = 0.0
+            self._b = 1.0
+    
+    @property
+    def a(self) -> np.ndarray:
+        return self._a
+    
+    @a.setter
+    def a(self, value):
+        self._a = value
+    
+    @property
+    def b(self) -> np.ndarray:
+        return self._b
+    
+    @b.setter
+    def b(self, value):
+        self._b = value
+    
+    def _sigmoid(self, x: np.ndarray) -> np.ndarray:
+        """Safe sigmoid computation with clipping."""
+        x_clipped = np.clip(x, -500, 500)
+        return 1.0 / (1.0 + np.exp(-x_clipped))
+    
+    def forward(self, z: np.ndarray) -> np.ndarray:
+        """Compute dynamic sigmoid: sigmoid(b * (z - a))"""
+        return self._sigmoid(self.b * (z - self.a))
+    
+    def derivative(self, z: np.ndarray) -> np.ndarray:
+        """Compute derivative w.r.t. z: b * sigmoid(b*(z-a)) * (1 - sigmoid(b*(z-a)))"""
+        sig = self.forward(z)
+        return self.b * sig * (1.0 - sig)
+    
+    def update_params(self, z: np.ndarray, error: np.ndarray) -> None:
+        """
+        Update a and b using gradient descent.
+        
+        For f(z) = sigmoid(b * (z - a)):
+        ∂f/∂a = -b * f * (1 - f)
+        ∂f/∂b = (z - a) * f * (1 - f)
+        
+        Using chain rule with loss gradient (error):
+        ∂L/∂a = error * ∂f/∂a
+        ∂L/∂b = error * ∂f/∂b
+        """
+        sig = self.forward(z)
+        sig_deriv = sig * (1.0 - sig)  # f * (1 - f)
+        
+        if self.per_neuron:
+            # Per-neuron gradients: average over batch, keep neuron dimension
+            grad_a = np.mean(error * (-self.b * sig_deriv), axis=0)
+            grad_b = np.mean(error * ((z - self.a) * sig_deriv), axis=0)
+        else:
+            # Scalar gradients: average over everything
+            grad_a = np.mean(error * (-self.b * sig_deriv))
+            grad_b = np.mean(error * ((z - self.a) * sig_deriv))
+        
+        self._a -= self.learning_rate * grad_a
+        self._b -= self.learning_rate * grad_b
+    
+    @property
+    def is_learnable(self) -> bool:
+        return True
+    
+    @property
+    def num_activation_params(self) -> int:
+        """Return number of learnable activation parameters."""
+        if self.per_neuron:
+            return 2 * self.num_neurons
+        return 2
+    
+    @property
+    def info(self) -> str:
+        if self.per_neuron:
+            a_mean, a_std = np.mean(self._a), np.std(self._a)
+            b_mean, b_std = np.mean(self._b), np.std(self._b)
+            return f"DynamicSigmoid[{self.num_neurons}]: a={a_mean:.4f}±{a_std:.4f}, b={b_mean:.4f}±{b_std:.4f}"
+        return f"DynamicSigmoid: sigmoid({self._b:.4f}*(x - {self._a:.4f}))"
+
+
 class Softmax(Activation):
     """
     Softmax activation for multi-class output layer.
@@ -215,9 +321,9 @@ def create_activation(name: str, learning_rate: float = 0.01, **kwargs) -> Activ
     Factory function to create activation by name.
     
     Args:
-        name: One of 'relu', 'dynamic_relu', 'sigmoid', 'softmax', 'leaky_relu'
+        name: One of 'relu', 'dynamic_relu', 'sigmoid', 'dynamic_sigmoid', 'softmax', 'leaky_relu'
         learning_rate: Learning rate for learnable activations
-        **kwargs: Additional arguments (e.g., alpha for LeakyReLU)
+        **kwargs: Additional arguments (e.g., alpha for LeakyReLU, num_neurons for dynamic activations)
     
     Returns:
         Activation instance
@@ -226,6 +332,7 @@ def create_activation(name: str, learning_rate: float = 0.01, **kwargs) -> Activ
         "relu": ReLU,
         "dynamic_relu": DynamicReLU,
         "sigmoid": Sigmoid,
+        "dynamic_sigmoid": DynamicSigmoid,
         "softmax": Softmax,
         "leaky_relu": LeakyReLU,
     }
@@ -240,5 +347,9 @@ def create_activation(name: str, learning_rate: float = 0.01, **kwargs) -> Activ
     if name_lower == "dynamic_relu":
         num_neurons = kwargs.get("num_neurons", None)
         return DynamicReLU(learning_rate=learning_rate, num_neurons=num_neurons)
+    
+    if name_lower == "dynamic_sigmoid":
+        num_neurons = kwargs.get("num_neurons", None)
+        return DynamicSigmoid(learning_rate=learning_rate, num_neurons=num_neurons)
     
     return activations[name_lower](learning_rate=learning_rate)

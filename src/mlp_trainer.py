@@ -654,3 +654,85 @@ class MLPExperiment:
             model_params=model.num_params,
             activation_info="; ".join(activation_info),
         )
+
+    def run_activation_finetuning(
+        self,
+        baseline_model: 'MLP',
+        X_train: np.ndarray,
+        y_train: np.ndarray,
+        X_test: np.ndarray,
+        y_test: np.ndarray,
+        per_neuron: bool = True,
+    ) -> ExperimentResult:
+        """
+        Take a trained baseline model, copy it with dynamic activations,
+        and train only the activation parameters.
+        
+        This avoids training two separate models - we reuse the baseline weights.
+        
+        Args:
+            baseline_model: A trained baseline MLP model
+            X_train, y_train: Training data
+            X_test, y_test: Test data
+            per_neuron: If True, each neuron gets its own a,b parameters
+            
+        Returns:
+            ExperimentResult for the activation-finetuned model
+        """
+        # Copy the baseline model with dynamic activations
+        dynamic_model = baseline_model.copy_with_dynamic_activations(
+            per_neuron=per_neuron,
+            activation_lr=self.learning_rate,
+        )
+        
+        mode_str = "Per-Neuron" if per_neuron else "Per-Layer"
+        
+        if self.verbose:
+            print("\n" + "=" * 60)
+            print(f"ACTIVATION FINETUNING ({mode_str})")
+            print("=" * 60)
+            print("Starting from trained baseline weights...")
+            print(dynamic_model.summary())
+        
+        trainer = MLPTrainer(
+            epochs=self.activation_epochs,
+            batch_size=self.batch_size,
+            learning_rate=self.learning_rate,
+            verbose=self.verbose,
+        )
+        
+        # Check accuracy before activation training
+        pre_train_acc = trainer._compute_accuracy(dynamic_model, X_test, y_test)
+        if self.verbose:
+            print(f"\nTest accuracy before activation training: {pre_train_acc:.4f}")
+            print(f"\n--- Training activation parameters (weights frozen) ---")
+        
+        # Train only activation parameters
+        activation_history = trainer.train_activation_params(
+            dynamic_model, X_train, y_train,
+            epochs=self.activation_epochs,
+            X_val=X_test, y_val=y_test
+        )
+        
+        train_acc = trainer._compute_accuracy(dynamic_model, X_train, y_train)
+        test_acc = trainer._compute_accuracy(dynamic_model, X_test, y_test)
+        
+        if self.verbose:
+            print(f"\nActivation training complete.")
+            print(f"Test accuracy: {test_acc:.4f} (was {pre_train_acc:.4f}, improvement: {test_acc - pre_train_acc:+.4f})")
+        
+        # Collect activation info
+        activation_info = []
+        for layer in dynamic_model.layers:
+            if hasattr(layer, 'activation') and layer.activation.is_learnable:
+                activation_info.append(layer.activation.info)
+        
+        return ExperimentResult(
+            model_name=f"Activation Finetuning ({mode_str})",
+            train_accuracy=train_acc,
+            test_accuracy=test_acc,
+            training_time=activation_history.training_time,
+            epochs_trained=activation_history.epochs_trained,
+            model_params=dynamic_model.num_params,
+            activation_info="; ".join(activation_info),
+        )

@@ -303,11 +303,56 @@ class DataManager:
         
         Target: 0-9 class labels.
         """
-        dataset = fetch_openml('CIFAR_10', version=1, as_frame=True)
-        X = dataset.data.to_numpy(dtype=float)
-        y = dataset.target.astype(int).to_numpy()
+        import os
+        import pickle
+        import tarfile
+        import urllib.request
+        
+        # Cache directory
+        cache_dir = os.path.expanduser("~/.cifar10_cache")
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        tar_path = os.path.join(cache_dir, "cifar-10-python.tar.gz")
+        extracted_dir = os.path.join(cache_dir, "cifar-10-batches-py")
+        
+        # Download if not cached
+        if not os.path.exists(extracted_dir):
+            url = "https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz"
+            print(f"Downloading CIFAR-10 from {url}...")
+            urllib.request.urlretrieve(url, tar_path)
+            
+            print("Extracting CIFAR-10...")
+            with tarfile.open(tar_path, "r:gz") as tar:
+                tar.extractall(cache_dir)
+        
+        # Load all batches
+        def load_batch(filepath):
+            with open(filepath, 'rb') as f:
+                batch = pickle.load(f, encoding='bytes')
+            return batch[b'data'], np.array(batch[b'labels'])
+        
+        # Load training batches (1-5)
+        X_list, y_list = [], []
+        for i in range(1, 6):
+            batch_path = os.path.join(extracted_dir, f"data_batch_{i}")
+            X_batch, y_batch = load_batch(batch_path)
+            X_list.append(X_batch)
+            y_list.append(y_batch)
+        
+        # Load test batch
+        test_path = os.path.join(extracted_dir, "test_batch")
+        X_test, y_test = load_batch(test_path)
+        X_list.append(X_test)
+        y_list.append(y_test)
+        
+        # Combine all data
+        X = np.vstack(X_list).astype(float)
+        y = np.concatenate(y_list)
+        
         # Normalize pixel values to [0, 1]
         X = X / 255.0
+        
+        print(f"CIFAR-10 loaded: {X.shape[0]} samples, {X.shape[1]} features")
         return X, y
 
     def _load_kuzushiji_mnist(self) -> Tuple[np.ndarray, np.ndarray]:
