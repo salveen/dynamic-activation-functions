@@ -315,13 +315,127 @@ class LeakyReLU(Activation):
         return f"LeakyReLU(alpha={self.alpha})"
 
 
+class DynamicReLUSigmoid(Activation):
+    """
+    Linear combination of ReLU and Sigmoid: f(x) = a * relu(x) + b * sigmoid(x)
+
+    Learnable parameters:
+        a: weight for the ReLU component  (init 0.5)
+        b: weight for the Sigmoid component (init 0.5)
+
+    Supports both per-layer (scalar a, b) and per-neuron (vector a, b) modes.
+
+    Gradients (using chain rule with upstream error δ):
+        ∂L/∂a = Σ δ · relu(x)       → gradient of loss w.r.t. a
+        ∂L/∂b = Σ δ · sigmoid(x)     → gradient of loss w.r.t. b
+        ∂f/∂x = a · relu'(x) + b · sigmoid'(x)  → for backprop to previous layer
+    """
+
+    def __init__(self, learning_rate: float = 0.01, num_neurons: int = None):
+        super().__init__(learning_rate)
+        self.num_neurons = num_neurons
+        self.per_neuron = num_neurons is not None
+
+        if self.per_neuron:
+            self._a = np.full(num_neurons, 0.5)   # ReLU weight per neuron
+            self._b = np.full(num_neurons, 0.5)   # Sigmoid weight per neuron
+        else:
+            self._a = 0.5
+            self._b = 0.5
+
+    # ── properties ──────────────────────────────────────────────────
+    @property
+    def a(self) -> np.ndarray:
+        return self._a
+
+    @a.setter
+    def a(self, value):
+        self._a = value
+
+    @property
+    def b(self) -> np.ndarray:
+        return self._b
+
+    @b.setter
+    def b(self, value):
+        self._b = value
+
+    # ── helpers ─────────────────────────────────────────────────────
+    @staticmethod
+    def _relu(z: np.ndarray) -> np.ndarray:
+        return np.maximum(0, z)
+
+    @staticmethod
+    def _relu_deriv(z: np.ndarray) -> np.ndarray:
+        return (z > 0).astype(float)
+
+    @staticmethod
+    def _sigmoid(z: np.ndarray) -> np.ndarray:
+        z_clipped = np.clip(z, -500, 500)
+        return 1.0 / (1.0 + np.exp(-z_clipped))
+
+    @staticmethod
+    def _sigmoid_deriv(z: np.ndarray) -> np.ndarray:
+        s = DynamicReLUSigmoid._sigmoid(z)
+        return s * (1.0 - s)
+
+    # ── forward / derivative ────────────────────────────────────────
+    def forward(self, z: np.ndarray) -> np.ndarray:
+        """f(x) = a * relu(x) + b * sigmoid(x)"""
+        return self.a * self._relu(z) + self.b * self._sigmoid(z)
+
+    def derivative(self, z: np.ndarray) -> np.ndarray:
+        """∂f/∂x = a · relu'(x) + b · sigmoid'(x)"""
+        return self.a * self._relu_deriv(z) + self.b * self._sigmoid_deriv(z)
+
+    def update_params(self, z: np.ndarray, error: np.ndarray) -> None:
+        """
+        Update a and b via gradient descent.
+
+        ∂L/∂a = mean(error * relu(z))       (over batch)
+        ∂L/∂b = mean(error * sigmoid(z))    (over batch)
+        """
+        relu_z = self._relu(z)
+        sig_z = self._sigmoid(z)
+
+        if self.per_neuron:
+            grad_a = np.mean(error * relu_z, axis=0)
+            grad_b = np.mean(error * sig_z, axis=0)
+        else:
+            grad_a = np.mean(error * relu_z)
+            grad_b = np.mean(error * sig_z)
+
+        self._a -= self.learning_rate * grad_a
+        self._b -= self.learning_rate * grad_b
+
+    @property
+    def is_learnable(self) -> bool:
+        return True
+
+    @property
+    def num_activation_params(self) -> int:
+        if self.per_neuron:
+            return 2 * self.num_neurons
+        return 2
+
+    @property
+    def info(self) -> str:
+        if self.per_neuron:
+            a_mean, a_std = np.mean(self._a), np.std(self._a)
+            b_mean, b_std = np.mean(self._b), np.std(self._b)
+            return (f"DynamicReLUSigmoid[{self.num_neurons}]: "
+                    f"a(relu)={a_mean:.4f}±{a_std:.4f}, b(sig)={b_mean:.4f}±{b_std:.4f}")
+        return f"DynamicReLUSigmoid: {self._a:.4f}*relu(x) + {self._b:.4f}*sigmoid(x)"
+
+
 # Factory function for creating activations
 def create_activation(name: str, learning_rate: float = 0.01, **kwargs) -> Activation:
     """
     Factory function to create activation by name.
     
     Args:
-        name: One of 'relu', 'dynamic_relu', 'sigmoid', 'dynamic_sigmoid', 'softmax', 'leaky_relu'
+        name: One of 'relu', 'dynamic_relu', 'sigmoid', 'dynamic_sigmoid',
+              'softmax', 'leaky_relu', 'dynamic_relu_sigmoid'
         learning_rate: Learning rate for learnable activations
         **kwargs: Additional arguments (e.g., alpha for LeakyReLU, num_neurons for dynamic activations)
     
@@ -335,6 +449,7 @@ def create_activation(name: str, learning_rate: float = 0.01, **kwargs) -> Activ
         "dynamic_sigmoid": DynamicSigmoid,
         "softmax": Softmax,
         "leaky_relu": LeakyReLU,
+        "dynamic_relu_sigmoid": DynamicReLUSigmoid,
     }
     
     name_lower = name.lower()
@@ -351,5 +466,9 @@ def create_activation(name: str, learning_rate: float = 0.01, **kwargs) -> Activ
     if name_lower == "dynamic_sigmoid":
         num_neurons = kwargs.get("num_neurons", None)
         return DynamicSigmoid(learning_rate=learning_rate, num_neurons=num_neurons)
+    
+    if name_lower == "dynamic_relu_sigmoid":
+        num_neurons = kwargs.get("num_neurons", None)
+        return DynamicReLUSigmoid(learning_rate=learning_rate, num_neurons=num_neurons)
     
     return activations[name_lower](learning_rate=learning_rate)

@@ -11,7 +11,10 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
-from activations import Activation, ReLU, DynamicReLU, Sigmoid, DynamicSigmoid, Softmax, create_activation
+from activations import (
+    Activation, ReLU, DynamicReLU, Sigmoid, DynamicSigmoid,
+    DynamicReLUSigmoid, Softmax, create_activation,
+)
 from layers import Dense, Dropout
 
 
@@ -306,6 +309,38 @@ class MLP:
         new_model.training = self.training
         return new_model
 
+    def copy_with_relu_sigmoid_activations(self, per_neuron: bool = True, activation_lr: float = None) -> 'MLP':
+        """
+        Create a copy of this MLP but with DynamicReLUSigmoid activations.
+        
+        Replaces hidden-layer activations with a*relu(x) + b*sigmoid(x).
+        Copies the weights from this model.
+        
+        Args:
+            per_neuron: If True, each neuron gets its own a,b parameters
+            activation_lr: Learning rate for activation parameters
+            
+        Returns:
+            A new MLP with same weights but DynamicReLUSigmoid activations
+        """
+        import copy as copy_module
+        
+        new_config = copy_module.deepcopy(self.config)
+        new_config.hidden_activation = "dynamic_relu_sigmoid"
+        new_config.per_neuron_activation = per_neuron
+        if activation_lr is not None:
+            new_config.activation_lr = activation_lr
+        
+        new_model = MLP(new_config)
+        
+        for new_layer, old_layer in zip(new_model.layers, self.layers):
+            if isinstance(new_layer, Dense) and isinstance(old_layer, Dense):
+                new_layer.weights = old_layer.weights.copy()
+                new_layer.bias = old_layer.bias.copy()
+        
+        new_model.training = self.training
+        return new_model
+
 
 def create_baseline_mlp(
     input_dim: int,
@@ -408,6 +443,36 @@ def create_dynamic_sigmoid_mlp(
         output_activation="softmax",
         dropout_rate=dropout_rate,
         weight_init="xavier",  # Xavier init is better for sigmoid
+        learning_rate=learning_rate,
+        activation_lr=activation_lr,
+        per_neuron_activation=per_neuron,
+    )
+    return MLP(config)
+
+
+def create_relu_sigmoid_mlp(
+    input_dim: int,
+    hidden_dims: List[int],
+    output_dim: int,
+    learning_rate: float = 0.01,
+    activation_lr: float = 0.01,
+    dropout_rate: float = 0.0,
+    per_neuron: bool = False,
+) -> MLP:
+    """
+    Create MLP with DynamicReLUSigmoid activations: a*relu(x) + b*sigmoid(x).
+
+    Architecture: DynamicReLUSigmoid hidden layers + Softmax output.
+    Uses He initialization (the ReLU component dominates at init).
+    """
+    config = MLPConfig(
+        input_dim=input_dim,
+        hidden_dims=hidden_dims,
+        output_dim=output_dim,
+        hidden_activation="dynamic_relu_sigmoid",
+        output_activation="softmax",
+        dropout_rate=dropout_rate,
+        weight_init="he",
         learning_rate=learning_rate,
         activation_lr=activation_lr,
         per_neuron_activation=per_neuron,

@@ -25,7 +25,6 @@ Activation Finetuning (Per-Neuron)               0.7674 ± 0.0097    0.5201 ± 0
 
 
 
-
 ====================================================================================================
 FINAL SUMMARY (Mean ± Std over 20 seeds)
 ====================================================================================================
@@ -43,7 +42,7 @@ FINAL SUMMARY (Mean ± Std over 20 seeds)
 📊 CIFAR10:
    Baseline: 0.5155 ± 0.0038
    Best (Activation Finetuning (Per-Neuron)): 0.5201 ± 0.0030
-   Improvement: +0.0046 (+0.46%)
+   Improvement: +0.0046 
 
 
 
@@ -108,3 +107,15 @@ FINAL SUMMARY (Mean ± Std over 20 seeds)
    Baseline (Sigmoid): 0.4189 ± 0.0019
    Best (Activation Finetuning (Per-Neuron)): 0.4197 ± 0.0019
    Improvement: +0.0008 (+0.08%)
+
+
+
+
+# Train Weights on fixed activation
+# Train Activation on pretrained weights
+# Train random Weights on pretrained activations
+Will weights be different?
+Did weight training process finish earlier with pretrained activations
+
+(a * relu + b * sigmoid)
+
