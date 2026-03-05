@@ -5,13 +5,11 @@ This package provides neural network components with support for
 both fixed and learnable (dynamic) activation functions.
 
 Modules:
-    - activations: Activation functions (ReLU, DynamicReLU, Sigmoid, Softmax)
+    - activations: Activation functions (ReLU, DynamicReLU, Sigmoid, DynamicSigmoid, DynamicReLUSigmoid, Softmax)
     - layers: Neural network layers (Dense, Dropout, BatchNorm)
     - mlp: Multi-Layer Perceptron implementation
     - mlp_trainer: Training utilities for MLPs
     - data_utils: Dataset loading and preprocessing
-    - models: Legacy single neuron implementation
-    - trainer: Legacy single neuron trainer
 """
 
 from activations import (
