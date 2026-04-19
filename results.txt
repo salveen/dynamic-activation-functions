@@ -108,14 +108,3 @@ FINAL SUMMARY (Mean ± Std over 20 seeds)
    Best (Activation Finetuning (Per-Neuron)): 0.4197 ± 0.0019
    Improvement: +0.0008 (+0.08%)
 
-
-
-
-# Train Weights on fixed activation
-# Train Activation on pretrained weights
-# Train random Weights on pretrained activations
-Will weights be different?
-Did weight training process finish earlier with pretrained activations
-
-(a * relu + b * sigmoid)
-
