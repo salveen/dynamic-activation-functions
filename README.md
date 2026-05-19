@@ -134,13 +134,13 @@ Initialised at $a=0, b=1$ so the network starts identically to baseline ReLU.
 
 **Protocol:** Train a baseline ReLU MLP to convergence → copy weights → replace ReLU with $f(x) = a \cdot \text{ReLU}(x) + b \cdot \sigma(x)$ → freeze weights → finetune only $(a, b)$.
 
-| Dataset | Baseline (ReLU) | + Finetuning | Δ Accuracy |
-|---|---|---|---|
-| **MNIST** | 0.9639 ± 0.0006 | 0.9639 ± 0.0006 | +0.0000 (0.00 %) |
-| **Fashion-MNIST** | 0.8845 ± 0.0020 | 0.8845 ± 0.0020 | +0.0000 (0.00 %) |
-| **CIFAR-10** | 0.5155 ± 0.0038 | 0.5213 ± 0.0036 | **+0.0058 (+0.58 %)** |
+| Dataset | Baseline (ReLU) | + Finetuning | Δ Accuracy | Significant? |
+|---|---|---|---|---|
+| **MNIST** | 0.9639 ± 0.0006 | 0.9593 ± 0.0010 | **−0.0046 (−0.46 %)** | Yes (p<0.0001, worse) |
+| **Fashion-MNIST** | 0.8845 ± 0.0020 | 0.8814 ± 0.0019 | **−0.0031 (−0.31 %)** | Yes (p<0.0001, worse) |
+| **CIFAR-10** | 0.5155 ± 0.0038 | 0.5213 ± 0.0036 | **+0.0058 (+0.58 %)** | Yes (p<0.0001, d=1.52) |
 
-CIFAR-10 shows the largest gain — but +0.58 % on a 51 % baseline is not practically meaningful.
+CIFAR-10 shows the largest gain (+0.58 %, p<0.0001, large effect size d=1.52), but the blend **hurts performance on simpler datasets** — MNIST and Fashion-MNIST both degrade significantly. The activation blend appears to add useful nonlinearity for harder tasks while disrupting learned representations on easier ones.
 
 ### Experiment 3 — Dynamic Sigmoid Finetuning
 
@@ -173,16 +173,16 @@ No significant accuracy improvement or convergence speedup. Paired t-tests confi
 
 | Experiment | Best Δ Accuracy | Statistically Significant? |
 |---|---|---|
-| Dynamic ReLU Finetuning | +0.46 % (CIFAR-10) | No |
-| ReLU–Sigmoid Blend Finetuning | +0.58 % (CIFAR-10) | No |
+| Dynamic ReLU Finetuning | +0.46 % (CIFAR-10) | Yes — CIFAR-10 and Fashion-MNIST (p<0.0001); MNIST no change |
+| ReLU–Sigmoid Blend Finetuning | +0.58 % (CIFAR-10) | Yes — CIFAR-10 improved (p<0.0001); MNIST and Fashion-MNIST significantly worse |
 | Dynamic Sigmoid Finetuning | +0.08 % (CIFAR-10) | No |
-| Pretrained Activation Transfer | +0.02 % (Fashion-MNIST) | No |
+| Pretrained Activation Transfer | +0.02 % (Fashion-MNIST) | No — CIFAR-10 marginally regressed (−0.08 %) |
 
 ---
 
 ## Analysis & Conclusion
 
-**The hypothesis is not supported for the architecture tested.** Learnable activation parameters do not produce meaningful accuracy gains or convergence speedups on two-hidden-layer MLPs with 256 → 128 neurons.
+**The hypothesis is not supported for the architecture tested.** While some experiments produce statistically significant results (Dynamic ReLU and the ReLU–Sigmoid blend both show p<0.0001 on CIFAR-10), the improvements are small in magnitude and inconsistent across datasets — the blend significantly *hurts* performance on MNIST and Fashion-MNIST. No experiment yields a practically meaningful or reliably positive accuracy gain. Convergence speedup (Experiment 4) is also absent.
 
 ### Why?
 
