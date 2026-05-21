@@ -92,28 +92,6 @@ Each dynamic activation is parameterised **per neuron**, meaning every hidden un
 
 The key implementation detail: during the **activation finetuning phase**, weight gradients are computed (for backpropagation to earlier layers) but **not applied** — only the $(a, b)$ gradients update. This is controlled by a single flag in the backward pass.
 
-### Project Structure
-
-```
-dynamic-activation-functions/
-│
-├── src/
-│   ├── activations.py          # Activation functions (ReLU, DynamicReLU, Sigmoid, DynamicSigmoid, DynamicReLUSigmoid, Softmax)
-│   ├── layers.py               # Dense, Dropout, BatchNorm layers
-│   ├── mlp.py                  # MLP model, config dataclass, factory functions
-│   ├── mlp_trainer.py          # Training loop, early stopping, experiment runner
-│   └── data_utils.py           # Dataset loading & preprocessing (12 datasets)
-│
-├── run_mlp_relu_experiment.ipynb              # Experiment 1
-├── run_mlp_relu_sigmoid_experiment.ipynb      # Experiment 2
-├── run_mlp_sigmoid_experiment.ipynb           # Experiment 3
-├── run_pretrained_activation_experiment.ipynb # Experiment 4
-│
-├── results.txt                 # Raw experiment output
-├── requirements.txt
-└── README.md
-```
-
 ---
 
 ## Experiments & Results
